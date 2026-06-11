@@ -1,0 +1,50 @@
+{
+  "active": "testnet-ws",
+  "profiles": {
+    "testnet-ws": {
+      "adapter": "ws",
+      "rpcEndpoint": "https://api.testnet.solana.com",
+      "wsEndpoint": "wss://api.testnet.solana.com",
+      "jitoBlockEngineUrl": "https://dallas.testnet.block-engine.jito.wtf",
+      "bundleCount": 12,
+      "faultInjection": { "atBundle": 6 },
+      "guardrails": {
+        "maxTipLamports": 1000000,
+        "tipBand": [1000, 1000000],
+        "maxRetries": 4,
+        "maxHoldSlots": 64
+      },
+      "llm": { "model": "gemini-2.5-flash" }
+    },
+    "local-grpc": {
+      "adapter": "grpc",
+      "rpcEndpoint": "http://127.0.0.1:8899",
+      "grpcEndpoint": "localhost:10000",
+      "jitoBlockEngineUrl": "https://dallas.testnet.block-engine.jito.wtf",
+      "bundleCount": 3,
+      "faultInjection": { "atBundle": 1 },
+      "guardrails": {
+        "maxTipLamports": 1000000,
+        "tipBand": [1000, 1000000],
+        "maxRetries": 4,
+        "maxHoldSlots": 64
+      },
+      "llm": { "model": "gemini-2.5-flash" }
+    },
+    "solinfra-grpc": {
+      "adapter": "grpc",
+      "rpcEndpoint": "https://api.testnet.solana.com",
+      "grpcEndpoint": "${SOLINFRA_GRPC_ENDPOINT}",
+      "jitoBlockEngineUrl": "https://dallas.testnet.block-engine.jito.wtf",
+      "bundleCount": 12,
+      "faultInjection": { "atBundle": 6 },
+      "guardrails": {
+        "maxTipLamports": 1000000,
+        "tipBand": [1000, 1000000],
+        "maxRetries": 4,
+        "maxHoldSlots": 64
+      },
+      "llm": { "model": "gemini-2.5-flash" }
+    }
+  }
+}
