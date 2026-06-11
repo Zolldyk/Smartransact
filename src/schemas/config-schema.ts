@@ -1,11 +1,28 @@
 import { z } from "zod";
 
-export const GuardrailsSchema = z.object({
-  maxTipLamports: z.number().int().positive(),
-  tipBand: z.tuple([z.number().int().positive(), z.number().int().positive()]),
-  maxRetries: z.number().int().positive(),
-  maxHoldSlots: z.number().int().positive(),
-});
+export const GuardrailsSchema = z
+  .object({
+    maxTipLamports: z.number().int().positive(),
+    tipBand: z.tuple([z.number().int().positive(), z.number().int().positive()]),
+    maxRetries: z.number().int().positive(),
+    maxHoldSlots: z.number().int().positive(),
+  })
+  .superRefine((g, ctx) => {
+    if (g.tipBand[0] > g.tipBand[1]) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["tipBand"],
+        message: `tipBand min (${g.tipBand[0]}) exceeds tipBand max (${g.tipBand[1]})`,
+      });
+    }
+    if (g.tipBand[1] > g.maxTipLamports) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["tipBand"],
+        message: `tipBand max (${g.tipBand[1]}) exceeds maxTipLamports (${g.maxTipLamports})`,
+      });
+    }
+  });
 
 export const FaultInjectionSchema = z.object({
   atBundle: z.number().int().nonnegative(),

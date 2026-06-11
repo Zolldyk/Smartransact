@@ -41,6 +41,10 @@ export function loadConfig(profileOverride?: string): AppConfig {
   // Expand ${SOLINFRA_GRPC_ENDPOINT} placeholder for the solinfra-grpc profile
   let profile = profileRaw;
   if (profile.adapter === "grpc" && profile.grpcEndpoint.startsWith("${")) {
+    if (!profile.grpcEndpoint.endsWith("}")) {
+      console.error(`Config error: grpcEndpoint "${profile.grpcEndpoint}" is a malformed placeholder — expected \${VAR_NAME}.`);
+      process.exit(1);
+    }
     const envVarName = profile.grpcEndpoint.slice(2, -1);
     const expanded = process.env[envVarName];
     if (!expanded) {

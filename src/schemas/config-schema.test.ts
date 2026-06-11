@@ -71,4 +71,22 @@ describe("GuardrailsSchema", () => {
       GuardrailsSchema.safeParse({ ...GUARDRAIL_DEFAULTS, maxTipLamports: -1 }).success
     ).toBe(false);
   });
+
+  it("rejects an inverted tipBand (min > max)", () => {
+    expect(
+      GuardrailsSchema.safeParse({
+        ...GUARDRAIL_DEFAULTS,
+        tipBand: [1_000_000, 1_000] as [number, number],
+      }).success
+    ).toBe(false);
+  });
+
+  it("rejects tipBand max above maxTipLamports", () => {
+    expect(
+      GuardrailsSchema.safeParse({
+        ...GUARDRAIL_DEFAULTS,
+        tipBand: [1_000, 2_000_000] as [number, number],
+      }).success
+    ).toBe(false);
+  });
 });

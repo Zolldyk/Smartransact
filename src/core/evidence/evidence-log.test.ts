@@ -59,4 +59,12 @@ describe("EvidenceLog", () => {
     ).toThrow();
     log.close();
   });
+
+  it("close() unregisters the SIGINT handler", () => {
+    const before = process.listenerCount("SIGINT");
+    const log = new EvidenceLog("test-c");
+    expect(process.listenerCount("SIGINT")).toBe(before + 1);
+    log.close();
+    expect(process.listenerCount("SIGINT")).toBe(before);
+  });
 });

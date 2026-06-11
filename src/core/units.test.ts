@@ -29,4 +29,16 @@ describe("units", () => {
   it("serializeBigInt throws for value above MAX_SAFE_INTEGER", () => {
     expect(() => serializeBigInt(BigInt(Number.MAX_SAFE_INTEGER) + 1n)).toThrow();
   });
+
+  it("serializeBigInt throws for value below MIN_SAFE_INTEGER", () => {
+    expect(() => serializeBigInt(BigInt(Number.MIN_SAFE_INTEGER) - 1n)).toThrow();
+  });
+
+  it("toLamports throws a descriptive error on non-integer input", () => {
+    expect(() => toLamports(1.5)).toThrow(/non-integer/);
+  });
+
+  it("toSlots throws a descriptive error on non-integer input", () => {
+    expect(() => toSlots(0.5)).toThrow(/non-integer/);
+  });
 });
