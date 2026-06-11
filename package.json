@@ -1,0 +1,29 @@
+{
+  "name": "smartransact",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx src/cli/main.ts",
+    "run": "tsx src/cli/main.ts run",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "render-log": "tsx src/core/evidence/render-markdown.ts"
+  },
+  "dependencies": {
+    "@google/genai": "^2.8.0",
+    "@solana/kit": "^6.9.0",
+    "@triton-one/yellowstone-grpc": "^5.0.8",
+    "commander": "^15.0.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}

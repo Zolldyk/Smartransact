@@ -1,0 +1,18 @@
+node_modules/
+.env
+logs/
+*.json.key
+*-keypair.json
+keypair*.json
+id.json
+
+# Planning & tooling workspace — not part of the public deliverable
+_bmad/
+_bmad-output/
+.agents/
+.claude/
+skills-lock.json
+
+# Planning docs — ignore all of docs/ except the committed diagrams directory
+docs/*
+!docs/diagrams/
