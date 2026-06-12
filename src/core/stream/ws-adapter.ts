@@ -101,7 +101,13 @@ export class RpcWebSocketAdapter {
         break;
       }
     } catch {
-      // signal aborted or subscription already closed — no action needed
+      // Abort (expected), subscription closed before notification, or network drop.
+      // Real subscription failures are NOT swallowed by intent — they are detected
+      // indirectly: if a bundle never advances past a given stage, the orchestrator
+      // (Story 5.1) classifies it bundle_failure via a stale-bundle timeout.
+      // The adapter has no EvidenceLog access; surfacing errors here would require
+      // injecting EvidenceLog into a stateless transport layer (violates the adapter
+      // boundary). Design decision recorded here, implementation in Story 5.1.
     }
   }
 
