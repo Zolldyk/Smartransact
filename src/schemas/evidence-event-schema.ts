@@ -98,6 +98,13 @@ export const EvidenceEventsDroppedSchema = z.object({
   count: z.number().int().positive(),
 });
 
+export const StreamReconnectedEvidenceSchema = z.object({
+  event: z.literal("streamReconnected"),
+  at: z.string(),
+  attempt: z.number().int().nonnegative(),
+  delayMs: z.number(),
+});
+
 export const EvidenceEventSchema = z.discriminatedUnion("event", [
   SessionStartedSchema,
   SessionEndedSchema,
@@ -107,6 +114,7 @@ export const EvidenceEventSchema = z.discriminatedUnion("event", [
   AgentDecisionEventSchema,
   FaultInjectedSchema,
   EvidenceEventsDroppedSchema,
+  StreamReconnectedEvidenceSchema,
 ]);
 
 export type SessionStarted = z.infer<typeof SessionStartedSchema>;
@@ -117,4 +125,5 @@ export type FailureClassified = z.infer<typeof FailureClassifiedSchema>;
 export type AgentDecisionEvent = z.infer<typeof AgentDecisionEventSchema>;
 export type FaultInjected = z.infer<typeof FaultInjectedSchema>;
 export type EvidenceEventsDropped = z.infer<typeof EvidenceEventsDroppedSchema>;
+export type StreamReconnectedEvidence = z.infer<typeof StreamReconnectedEvidenceSchema>;
 export type EvidenceEvent = z.infer<typeof EvidenceEventSchema>;
