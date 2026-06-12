@@ -5,6 +5,7 @@ import {
   appendTransactionMessageInstructions,
   signTransactionMessageWithSigners,
   getBase64EncodedWireTransaction,
+  getSignatureFromTransaction,
   AccountRole,
   address,
   setTransactionMessageFeePayerSigner,
@@ -41,7 +42,9 @@ export type BundleParams = {
   txCount?: 1 | 2;
 };
 
-export async function buildBundle(params: BundleParams): Promise<string[]> {
+export async function buildBundle(
+  params: BundleParams,
+): Promise<{ transactions: string[]; signatures: string[] }> {
   const txCount = params.txCount ?? 2;
   if (txCount > JITO_MAX_BUNDLE_TXS) {
     throw new Error(
@@ -70,9 +73,13 @@ export async function buildBundle(params: BundleParams): Promise<string[]> {
       ),
   );
   const signed1 = await signTransactionMessageWithSigners(msg1);
+  const sig1: string = getSignatureFromTransaction(signed1);
 
   if (txCount === 1) {
-    return [getBase64EncodedWireTransaction(signed1)];
+    return {
+      transactions: [getBase64EncodedWireTransaction(signed1)],
+      signatures: [sig1],
+    };
   }
 
   // Transaction 2: self-transfer only
@@ -87,9 +94,13 @@ export async function buildBundle(params: BundleParams): Promise<string[]> {
       ),
   );
   const signed2 = await signTransactionMessageWithSigners(msg2);
+  const sig2: string = getSignatureFromTransaction(signed2);
 
-  return [
-    getBase64EncodedWireTransaction(signed1),
-    getBase64EncodedWireTransaction(signed2),
-  ];
+  return {
+    transactions: [
+      getBase64EncodedWireTransaction(signed1),
+      getBase64EncodedWireTransaction(signed2),
+    ],
+    signatures: [sig1, sig2],
+  };
 }

@@ -11,7 +11,8 @@
     "run": "tsx src/cli/main.ts run",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "render-log": "tsx src/core/evidence/render-markdown.ts"
+    "render-log": "tsx src/core/evidence/render-markdown.ts",
+    "smoke-test": "tsx scripts/smoke-test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.8.0",
