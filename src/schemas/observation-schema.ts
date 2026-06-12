@@ -27,7 +27,7 @@ export const TipMarketDataSchema = z.object({
     p99: z.number(),
   }),
   emaP50: z.number(),
-  observedTestnetRecentTips: z.array(z.number()),
+  observedRecentTips: z.array(z.number()),
 });
 
 export const LeaderContextSchema = z.object({
