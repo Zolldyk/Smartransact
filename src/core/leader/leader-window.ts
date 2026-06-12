@@ -90,4 +90,8 @@ export class LeaderWindow {
   getLeaderSchedule(): Map<bigint, string> {
     return this._schedule;
   }
+
+  async getNextJitoLeaderWindow(): Promise<{ startSlot: bigint; endSlot: bigint }> {
+    return { startSlot: this._currentSlot + 1n, endSlot: this._currentSlot + 4n };
+  }
 }

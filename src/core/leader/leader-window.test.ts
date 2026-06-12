@@ -23,4 +23,27 @@ describe("LeaderWindow", () => {
     expect(lw.getLeaderSchedule().get(100n)).toBe("validatorA");
     expect(lw.getLeaderSchedule().get(101n)).toBe("validatorB");
   });
+
+  it("(d) window from current slot: after slot 500n, returns startSlot 501n and endSlot 504n", async () => {
+    const lw = new LeaderWindow();
+    lw.consume({ kind: "slotAdvanced", slot: 500n });
+    const window = await lw.getNextJitoLeaderWindow();
+    expect(window.startSlot).toBe(501n);
+    expect(window.endSlot).toBe(504n);
+  });
+
+  it("(e) window is non-empty and starts in the future", async () => {
+    const lw = new LeaderWindow();
+    lw.consume({ kind: "slotAdvanced", slot: 500n });
+    const window = await lw.getNextJitoLeaderWindow();
+    expect(window.endSlot - window.startSlot).toBe(3n);
+    expect(window.startSlot > lw.getCurrentSlot()).toBe(true);
+  });
+
+  it("(f) window from initial state (slot 0): returns startSlot 1n and endSlot 4n", async () => {
+    const lw = new LeaderWindow();
+    const window = await lw.getNextJitoLeaderWindow();
+    expect(window.startSlot).toBe(1n);
+    expect(window.endSlot).toBe(4n);
+  });
 });
