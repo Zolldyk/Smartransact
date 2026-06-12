@@ -1,4 +1,4 @@
-import type { RpcWebSocketAdapter } from "./ws-adapter.js";
+import type { StreamAdapter } from "./stream-adapter.js";
 import type { LifecycleStream } from "./lifecycle-stream.js";
 import type { EvidenceLog } from "../evidence/evidence-log.js";
 
@@ -35,7 +35,7 @@ export function computeBackoffDelay(
  * streamReconnected to the stream and evidence log before retrying.
  */
 export async function withReconnect(
-  adapter: RpcWebSocketAdapter,
+  adapter: StreamAdapter,
   stream: LifecycleStream,
   evidenceLog: EvidenceLog,
   policy: ReconnectPolicy,

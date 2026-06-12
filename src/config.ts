@@ -38,20 +38,27 @@ export function loadConfig(profileOverride?: string): AppConfig {
     process.exit(1);
   }
 
-  // Expand ${SOLINFRA_GRPC_ENDPOINT} placeholder for the solinfra-grpc profile
   let profile = profileRaw;
-  if (profile.adapter === "grpc" && profile.grpcEndpoint.startsWith("${")) {
-    if (!profile.grpcEndpoint.endsWith("}")) {
-      console.error(`Config error: grpcEndpoint "${profile.grpcEndpoint}" is a malformed placeholder — expected \${VAR_NAME}.`);
-      process.exit(1);
-    }
-    const envVarName = profile.grpcEndpoint.slice(2, -1);
-    const expanded = process.env[envVarName];
-    if (!expanded) {
-      console.error(`Config error: grpcEndpoint references ${profile.grpcEndpoint} but ${envVarName} is not set in .env.`);
-      process.exit(1);
-    }
-    profile = { ...profile, grpcEndpoint: expanded };
+
+  const expandPlaceholders = (s: string, fieldName: string): string =>
+    s.replace(/\$\{([A-Z0-9_]+)\}/g, (_, varName: string) => {
+      const value = process.env[varName];
+      if (!value) {
+        console.error(`Config error: ${fieldName} references \${${varName}} but ${varName} is not set in .env.`);
+        process.exit(1);
+      }
+      return value;
+    });
+
+  const rpcEndpoint = expandPlaceholders(profile.rpcEndpoint, "rpcEndpoint");
+  if (profile.adapter === "grpc") {
+    const grpcEndpoint = expandPlaceholders(profile.grpcEndpoint, "grpcEndpoint");
+    const grpcXToken = profile.grpcXToken != null
+      ? expandPlaceholders(profile.grpcXToken, "grpcXToken")
+      : undefined;
+    profile = { ...profile, rpcEndpoint, grpcEndpoint, grpcXToken };
+  } else {
+    profile = { ...profile, rpcEndpoint };
   }
 
   return { geminiApiKey, keypairPath, ...profile };

@@ -6,6 +6,7 @@ export const GuardrailsSchema = z
     tipBand: z.tuple([z.number().int().positive(), z.number().int().positive()]),
     maxRetries: z.number().int().positive(),
     maxHoldSlots: z.number().int().positive(),
+    dryRun: z.boolean().optional().default(true),
   })
   .superRefine((g, ctx) => {
     if (g.tipBand[0] > g.tipBand[1]) {
@@ -45,8 +46,9 @@ const WsProfileSchema = z.object({
 
 const GrpcProfileSchema = z.object({
   adapter: z.literal("grpc"),
-  rpcEndpoint: z.string().url(),
-  grpcEndpoint: z.string().min(1), // host:port, NOT a URL
+  rpcEndpoint: z.string().min(1), // may contain ${VAR} placeholders; expanded by config.ts
+  grpcEndpoint: z.string().min(1), // host:port or ${VAR}; NOT a URL — normalized to https:// by GrpcAdapter
+  grpcXToken: z.string().optional(),
   jitoBlockEngineUrl: z.string().url(),
   bundleCount: z.number().int().positive(),
   faultInjection: FaultInjectionSchema,
