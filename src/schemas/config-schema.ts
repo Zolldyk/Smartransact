@@ -72,3 +72,4 @@ export type AppConfig = {
   geminiApiKey: string;
   keypairPath: string;
 } & Profile;
+export type Guardrails = z.infer<typeof GuardrailsSchema>;
