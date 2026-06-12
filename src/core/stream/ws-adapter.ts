@@ -26,6 +26,7 @@ export function invertLeaderSchedule(
 export class RpcWebSocketAdapter {
   private readonly rpc: ReturnType<typeof createSolanaRpc>;
   private readonly rpcSubscriptions: ReturnType<typeof createSolanaRpcSubscriptions>;
+  private _pollStarted = false;
 
   constructor(
     rpcEndpoint: string,
@@ -43,7 +44,13 @@ export class RpcWebSocketAdapter {
         .slotNotifications()
         .subscribe({ abortSignal: signal });
 
-      void this._pollLeaderSchedule(signal);
+      // Launch the leader-schedule poll loop once per adapter. withReconnect
+      // re-invokes start() on every reconnect; without this guard each call
+      // would spawn another concurrent poll loop (leaked RPC traffic).
+      if (!this._pollStarted) {
+        this._pollStarted = true;
+        void this._pollLeaderSchedule(signal);
+      }
 
       for await (const notification of slotIter) {
         this.stream.push({
@@ -52,9 +59,15 @@ export class RpcWebSocketAdapter {
           parent: notification.parent,
         });
       }
+      // The slot loop exited. If the session was not aborted, the subscription
+      // ended unexpectedly (e.g. a server-side close) — surface it as a failure
+      // so withReconnect retries instead of treating it as a clean session end.
+      if (!signal.aborted) {
+        return fail({ reason: "slot subscription ended unexpectedly" });
+      }
       return ok(undefined);
     } catch (err) {
-      return fail({ reason: (err as Error).message });
+      return fail({ reason: err instanceof Error ? err.message : String(err) });
     }
   }
 
