@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { runCommand } from "./run.js";
 import { injectFaultCommand } from "./inject-fault.js";
+import { tailCommand } from "./tail.js";
 
 const program = new Command();
 
@@ -28,8 +29,8 @@ program
 program
   .command("tail")
   .description("Render a live lifecycle view from the evidence log")
-  .action(() => {
-    console.log("tail: not yet implemented");
+  .action(async () => {
+    await tailCommand();
   });
 
 program.parse();
