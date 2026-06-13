@@ -43,6 +43,7 @@ export const BundleSubmittedSchema = z.object({
   bundleId: z.string(),
   slot: z.bigint(),
   tipLamports: z.bigint(),
+  leaderWindow: z.object({ startSlot: z.bigint(), endSlot: z.bigint() }).optional(),
 });
 
 export const CommitmentTransitionSchema = z.object({

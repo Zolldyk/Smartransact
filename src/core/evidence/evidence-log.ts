@@ -20,10 +20,15 @@ export class EvidenceLog {
     process.exit(0);
   };
 
-  constructor(sessionId: string) {
+  /** When `suppressSigint` is true the log does NOT register its own SIGINT
+   * handler — used when the orchestrator owns shutdown and guarantees the log
+   * is flushed before process.exit. */
+  constructor(sessionId: string, options?: { suppressSigint?: boolean }) {
     mkdirSync("logs", { recursive: true });
     this.filePath = `logs/lifecycle-${sessionId}.jsonl`;
-    process.once("SIGINT", this.onSigint);
+    if (!options?.suppressSigint) {
+      process.once("SIGINT", this.onSigint);
+    }
   }
 
   append(event: EvidenceEvent): void {

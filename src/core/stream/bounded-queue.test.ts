@@ -10,7 +10,7 @@ const makeSlotEvent = (slot: bigint): StreamEvent => ({
 });
 
 afterEach(() => {
-  ["logs/lifecycle-bq-a.jsonl", "logs/lifecycle-bq-b.jsonl", "logs/lifecycle-bq-c.jsonl"].forEach(
+  ["logs/lifecycle-bq-a.jsonl", "logs/lifecycle-bq-b.jsonl", "logs/lifecycle-bq-c.jsonl", "logs/lifecycle-bq-d.jsonl"].forEach(
     (f) => { if (existsSync(f)) rmSync(f); }
   );
 });
@@ -51,6 +51,13 @@ describe("BoundedQueue", () => {
     const log = new EvidenceLog("bq-c");
     const q = new BoundedQueue(5, log);
     expect(q.dequeue()).toBeUndefined();
+    log.close();
+  });
+
+  it("(d) maxSize <= 0 throws at construction — closes deferred guard", () => {
+    const log = new EvidenceLog("bq-d");
+    expect(() => new BoundedQueue(0, log)).toThrow("maxSize must be > 0");
+    expect(() => new BoundedQueue(-1, log)).toThrow("maxSize must be > 0");
     log.close();
   });
 });

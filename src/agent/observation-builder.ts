@@ -13,11 +13,11 @@ import type { Guardrails } from "../schemas/config-schema.js";
  * rawError + failedAtSlot), NOT a raw `ClassifiedFailure`: the orchestrator
  * (Story 5.1) bridges `ClassifiedFailure -> FailureContext` by injecting the
  * `failedAtSlot` it owns. Keeping the bridge on the core side is what lets
- * this file have zero imports from the core layer.
+ * this file hold zero core-layer imports.
  *
  * All slot/lamport fields are NUMBERS, never bigints: the orchestrator
  * (Story 5.1) converts its bigint state via the units helpers BEFORE calling
- * here, so this file imports nothing from the core layer (AC6). The `leader`
+ * here, so this file has no core-layer imports (AC6). The `leader`
  * slice arrives already shaped as `LeaderContext` — the caller derives it from
  * `LeaderWindow.getNextJitoLeaderWindow()` on the core side. */
 export type ObservationInput = {

@@ -8,7 +8,11 @@ export class BoundedQueue {
   constructor(
     private readonly maxSize: number,
     private readonly evidenceLog: EvidenceLog,
-  ) {}
+  ) {
+    if (maxSize <= 0) {
+      throw new Error(`BoundedQueue: maxSize must be > 0 (got ${maxSize})`);
+    }
+  }
 
   enqueue(event: StreamEvent): void {
     if (this.items.length >= this.maxSize) {
