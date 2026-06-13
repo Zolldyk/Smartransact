@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { runCommand } from "./run.js";
 
 const program = new Command();
 
@@ -10,8 +11,9 @@ program
 program
   .command("run")
   .description("Orchestrate a full evidence session end-to-end")
-  .action(() => {
-    console.log("run: not yet implemented");
+  .option("--profile <name>", "Config profile override (overrides smartransact.config.json active field)")
+  .action(async (options: { profile?: string }) => {
+    await runCommand(options.profile);
   });
 
 program

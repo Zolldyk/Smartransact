@@ -165,6 +165,7 @@ export async function runSession(params: SessionParams): Promise<void> {
       if (!streamLiveFlag && event.kind === "slotAdvanced") {
         streamLiveFlag = true;
         streamLiveResolve();
+        console.log(`[stream] live at slot ${leaderWindow.getCurrentSlot()}`);
       }
 
       // Route txStatusChanged → tracker + settle completed bundles.
@@ -176,6 +177,7 @@ export async function runSession(params: SessionParams): Promise<void> {
           } catch (err) {
             console.error("[orchestrator] Illegal tracker transition:", err);
           }
+          console.log(`[${bundleId.slice(0, 8)}…] ${event.commitment} at slot ${event.slot}`);
           if (event.commitment === "finalized") {
             settlements.get(bundleId)?.resolve({ landed: true });
             settlements.delete(bundleId);
@@ -249,6 +251,8 @@ async function _runBundleLoop(
 
   const provider = new GeminiProvider(config.geminiApiKey, config.llm.model);
 
+  console.log(`[session] submitting ${config.bundleCount} bundles — dryRun: ${config.guardrails.dryRun}`);
+
   // Bundle loop: 0-based index matching config.faultInjection.atBundle semantics.
   for (let bundleIndex = 0; bundleIndex < config.bundleCount; bundleIndex++) {
     if (ac.signal.aborted) break;
@@ -299,7 +303,7 @@ async function _runBundleLoop(
 
     // dryRun: log and skip — no SOL spent.
     if (config.guardrails.dryRun) {
-      console.log(`[orchestrator] dryRun bundle ${bundleIndex}: tip=${tip} lamports`);
+      console.log(`[bundle ${bundleIndex + 1}/${config.bundleCount}] dryRun — tip=${tip} lamports, slot=${leaderWindow.getCurrentSlot()}`);
       continue;
     }
 
@@ -356,6 +360,7 @@ async function _runBundleLoop(
       tipLamports: tip,
       leaderWindow: { startSlot: leaderWin.startSlot, endSlot: leaderWin.endSlot },
     });
+    console.log(`[bundle ${bundleIndex + 1}/${config.bundleCount}] submitted id=${bundleId} slot=${submittedSlot} tip=${tip}`);
 
     tracker.register(bundleId);
 
@@ -369,7 +374,10 @@ async function _runBundleLoop(
     const settlement = await _awaitSettlement(bundleId, submittedSlot, settlements);
     if (ac.signal.aborted) break;
 
-    if (settlement.landed) continue;
+    if (settlement.landed) {
+      console.log(`[bundle ${bundleIndex + 1}/${config.bundleCount}] finalized`);
+      continue;
+    }
 
     // Timeout or failure — classify and enter agent episode.
     const cf = classifyFailure(settlement.reason);
@@ -380,6 +388,7 @@ async function _runBundleLoop(
       classification: cf.classification,
       rawError: cf.rawError,
     });
+    console.log(`[bundle ${bundleIndex + 1}/${config.bundleCount}] failed — ${cf.classification}`);
     await _runAgentEpisode({
       bundleIndex,
       cf,
