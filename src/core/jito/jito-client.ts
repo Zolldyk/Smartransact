@@ -27,9 +27,14 @@ export class JitoClient {
   }
 
   private async _rateLimit(signal: AbortSignal): Promise<void> {
-    const wait = 1_000 - (Date.now() - this._lastRequestMs);
+    const now = Date.now();
+    const wait = 1_000 - (now - this._lastRequestMs);
+    // Reserve this request's slot synchronously (before any await) so concurrent
+    // callers serialize ≥1 s apart instead of all reading the same stale timestamp
+    // and firing together — the ≥1 req/s contract (Story 3.4 AC2) must hold under
+    // concurrency, not just sequential use.
+    this._lastRequestMs = wait > 0 ? now + wait : now;
     if (wait > 0) await this._sleep(wait, signal);
-    this._lastRequestMs = Date.now();
   }
 
   private async _jsonRpc<T>(
