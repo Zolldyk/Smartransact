@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ConfigFileSchema, GuardrailsSchema } from "./config-schema.js";
+import { ConfigFileSchema, GuardrailsSchema, ProfileSchema } from "./config-schema.js";
 
 const GUARDRAIL_DEFAULTS = {
   maxTipLamports: 1_000_000,
@@ -86,6 +86,48 @@ describe("GuardrailsSchema", () => {
       GuardrailsSchema.safeParse({
         ...GUARDRAIL_DEFAULTS,
         tipBand: [1_000, 2_000_000] as [number, number],
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe("ProfileSchema faultInjection.atBundle vs bundleCount", () => {
+  it("(c) rejects atBundle >= bundleCount, accepts atBundle < bundleCount", () => {
+    // atBundle equal to bundleCount: the fault drill could never fire → reject
+    expect(
+      ProfileSchema.safeParse({
+        ...WS_PROFILE,
+        bundleCount: 10,
+        faultInjection: { atBundle: 10 },
+      }).success
+    ).toBe(false);
+    // atBundle above bundleCount → reject
+    expect(
+      ProfileSchema.safeParse({
+        ...WS_PROFILE,
+        bundleCount: 10,
+        faultInjection: { atBundle: 12 },
+      }).success
+    ).toBe(false);
+    // valid 0-based index (9 < 10) → accept
+    expect(
+      ProfileSchema.safeParse({
+        ...WS_PROFILE,
+        bundleCount: 10,
+        faultInjection: { atBundle: 9 },
+      }).success
+    ).toBe(true);
+    // also enforced through ConfigFileSchema's record of profiles
+    expect(
+      ConfigFileSchema.safeParse({
+        active: "testnet-ws",
+        profiles: {
+          "testnet-ws": {
+            ...WS_PROFILE,
+            bundleCount: 10,
+            faultInjection: { atBundle: 10 },
+          },
+        },
       }).success
     ).toBe(false);
   });

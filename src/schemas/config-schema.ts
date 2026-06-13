@@ -56,10 +56,17 @@ const GrpcProfileSchema = z.object({
   llm: LlmConfigSchema,
 });
 
-export const ProfileSchema = z.discriminatedUnion("adapter", [
-  WsProfileSchema,
-  GrpcProfileSchema,
-]);
+export const ProfileSchema = z
+  .discriminatedUnion("adapter", [WsProfileSchema, GrpcProfileSchema])
+  .superRefine((p, ctx) => {
+    if (p.faultInjection.atBundle >= p.bundleCount) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["faultInjection", "atBundle"],
+        message: `faultInjection.atBundle (${p.faultInjection.atBundle}) must be a valid 0-based bundle index < bundleCount (${p.bundleCount}); otherwise the fault drill never fires`,
+      });
+    }
+  });
 
 export const ConfigFileSchema = z.object({
   active: z.string().min(1),
