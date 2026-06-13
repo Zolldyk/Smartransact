@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import { runCommand } from "./run.js";
+import { injectFaultCommand } from "./inject-fault.js";
 
 const program = new Command();
 
@@ -17,10 +18,11 @@ program
   });
 
 program
-  .command("inject-fault")
-  .description("Fire a blockhash-expiry fault drill on demand")
-  .action(() => {
-    console.log("inject-fault: not yet implemented");
+  .command("inject-fault <fault-type>")
+  .description("Fire a fault drill for live demonstration (fault-type: blockhash-expiry)")
+  .option("--profile <name>", "Config profile override")
+  .action(async (faultType: string, options: { profile?: string }) => {
+    await injectFaultCommand(faultType, options.profile);
   });
 
 program
