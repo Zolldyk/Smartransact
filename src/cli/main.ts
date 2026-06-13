@@ -14,8 +14,9 @@ program
   .command("run")
   .description("Orchestrate a full evidence session end-to-end")
   .option("--profile <name>", "Config profile override (overrides smartransact.config.json active field)")
-  .action(async (options: { profile?: string }) => {
-    await runCommand(options.profile);
+  .option("--live", "Disable dryRun and submit bundles live to Jito (spends SOL)")
+  .action(async (options: { profile?: string; live?: boolean }) => {
+    await runCommand(options.profile, options.live);
   });
 
 program
