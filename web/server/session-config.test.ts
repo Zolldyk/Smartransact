@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { buildSessionConfig, ClientOverridesSchema, MAX_SANDBOX_BUNDLE_COUNT } from "./session-config.js";
+import {
+  buildSessionConfig,
+  ClientOverridesSchema,
+  MAX_SANDBOX_BUNDLE_COUNT,
+  MAX_SANDBOX_MAX_RETRIES,
+} from "./session-config.js";
 import type { AppConfig } from "../../src/config.js";
 
 // A representative base config in the shape `loadConfig("mainnet-ws")` returns.
@@ -81,5 +86,52 @@ describe("buildSessionConfig", () => {
     expect(base.guardrails.dryRun).toBe(false);
     expect(base.keypairPath).toBe("/secret/keypair-mainnet.json");
     expect(base.bundleCount).toBe(12);
+  });
+
+  // ─── Story 8.2 Task 7: additive guardrail allow-list ──────────────────────
+
+  it("(h) passes through valid guardrail overrides (tipBand/maxTip/maxRetries)", () => {
+    const cfg = buildSessionConfig(baseConfig(), SANDBOX_KEY, {
+      tipBand: [2000, 500_000],
+      maxTipLamports: 800_000,
+      maxRetries: 6,
+    });
+    expect(cfg.guardrails.tipBand).toEqual([2000, 500_000]);
+    expect(cfg.guardrails.maxTipLamports).toBe(800_000);
+    expect(cfg.guardrails.maxRetries).toBe(6);
+  });
+
+  it("(i) clamps maxTipLamports to the server cap and reorders an inverted tipBand", () => {
+    const cfg = buildSessionConfig(baseConfig(), SANDBOX_KEY, {
+      // above the base cap (1,000,000) → must clamp down
+      maxTipLamports: 9_000_000,
+      // inverted min>max → must be made valid (min ≤ max)
+      tipBand: [50_000, 1000],
+    });
+    expect(cfg.guardrails.maxTipLamports).toBe(1_000_000);
+    expect(cfg.guardrails.tipBand[0]).toBeLessThanOrEqual(cfg.guardrails.tipBand[1]);
+    // invariant the server GuardrailsSchema enforces: tipBand max ≤ maxTipLamports
+    expect(cfg.guardrails.tipBand[1]).toBeLessThanOrEqual(cfg.guardrails.maxTipLamports);
+  });
+
+  it("(j) caps maxRetries at the sandbox ceiling", () => {
+    const cfg = buildSessionConfig(baseConfig(), SANDBOX_KEY, { maxRetries: 999 });
+    expect(cfg.guardrails.maxRetries).toBe(MAX_SANDBOX_MAX_RETRIES);
+  });
+
+  it("(k) the new guardrail fields never weaken the dryRun/keypair forcing", () => {
+    const cfg = buildSessionConfig(baseConfig(), SANDBOX_KEY, {
+      tipBand: [1000, 1_000_000],
+      maxTipLamports: 1_000_000,
+      maxRetries: 4,
+    });
+    expect(cfg.guardrails.dryRun).toBe(true);
+    expect(cfg.keypairPath).toBe(SANDBOX_KEY);
+  });
+
+  it("(l) rejects malformed guardrail fields at the boundary (.strict + types)", () => {
+    expect(() => ClientOverridesSchema.parse({ maxRetries: -1 })).toThrow();
+    expect(() => ClientOverridesSchema.parse({ maxTipLamports: 0 })).toThrow();
+    expect(() => ClientOverridesSchema.parse({ tipBand: [1000] })).toThrow();
   });
 });

@@ -1,0 +1,6 @@
+# Frontend workspace — build output & deps are not committed (source IS).
+/node_modules
+/.next
+/out
+next-env.d.ts
+*.tsbuildinfo

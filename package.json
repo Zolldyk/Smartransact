@@ -17,7 +17,8 @@
     "render-log": "tsx src/core/evidence/render-markdown.ts",
     "smoke-test": "tsx scripts/smoke-test.ts",
     "agent-integration-test": "tsx scripts/agent-integration-test.ts",
-    "web:server": "tsx web/server/index.ts"
+    "web:server": "tsx web/server/index.ts",
+    "web:app": "npm --prefix web/app run dev"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",

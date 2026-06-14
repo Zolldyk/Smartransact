@@ -16,3 +16,6 @@ skills-lock.json
 # Planning docs — ignore all of docs/ except the committed diagrams directory
 docs/*
 !docs/diagrams/
+
+# Playwright MCP tool artifacts (screenshots/snapshots) — not part of the deliverable
+.playwright-mcp/
