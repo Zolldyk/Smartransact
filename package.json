@@ -19,10 +19,12 @@
     "agent-integration-test": "tsx scripts/agent-integration-test.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.1",
     "@google/genai": "^2.8.0",
     "@solana/kit": "^6.9.0",
     "@triton-one/yellowstone-grpc": "^5.0.8",
     "commander": "^15.0.0",
+    "jito-ts": "^4.2.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
