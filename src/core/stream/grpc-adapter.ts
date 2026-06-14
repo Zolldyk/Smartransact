@@ -21,9 +21,14 @@ const grpcDefault = ClientDefault as unknown as Record<string, unknown>;
 const grpcExports: Record<string, unknown> =
   typeof ClientDefault === "function" ? (YellowstoneGrpc as unknown as Record<string, unknown>) : grpcDefault;
 
+type GrpcSubscribeStream = AsyncIterable<SubscribeUpdate> & {
+  write(req: unknown): void;
+  destroy?(): void;
+};
 type YellowstoneClientInstance = {
   connect(): Promise<void>;
-  subscribe(): Promise<AsyncIterable<SubscribeUpdate>>;
+  getVersion(): Promise<unknown>;
+  subscribe(): Promise<GrpcSubscribeStream>;
 };
 const YellowstoneClient = (typeof ClientDefault === "function"
   ? ClientDefault
@@ -64,6 +69,19 @@ export function describeGrpcError(err: unknown): string {
   return `${messages[messages.length - 1]} (${messages[0]})`;
 }
 
+/**
+ * Story 5.7 — safely tear down a subscribe stream. Destroying the Duplex cancels the
+ * subscribe RPC and frees the server-side stream slot (SolInfra rations 1 concurrent
+ * stream per tier). Idempotent and never throws — the stream may already be closing.
+ */
+export function closeGrpcStream(grpcStream: { destroy?: () => void } | undefined): void {
+  try {
+    grpcStream?.destroy?.();
+  } catch {
+    // already destroyed / mid-teardown — nothing to do
+  }
+}
+
 export class GrpcAdapter {
   private readonly rpc: ReturnType<typeof createSolanaRpc>;
   private _pollStarted = false;
@@ -79,13 +97,20 @@ export class GrpcAdapter {
   }
 
   async start(signal: AbortSignal): Promise<Result<void, { reason: string }>> {
+    let grpcStream: GrpcSubscribeStream | undefined;
     try {
       const client = new YellowstoneClient(normalizeEndpoint(this.grpcEndpoint), this.grpcXToken, undefined);
       await client.connect();
-      const grpcStream = await client.subscribe();
+
+      // Story 5.7 — pre-flight probe: validate auth + endpoint with a unary RPC BEFORE
+      // consuming the rationed subscribe stream. A bad x-token or endpoint surfaces here
+      // with a clean message instead of as an opaque subscribe failure.
+      await client.getVersion();
+
+      grpcStream = await client.subscribe();
 
       // Write slot subscription request
-      (grpcStream as AsyncIterable<SubscribeUpdate> & { write(req: unknown): void }).write({
+      grpcStream.write({
         accounts: {},
         slots: { client: { filterByCommitment: false } },
         transactions: {},
@@ -119,6 +144,12 @@ export class GrpcAdapter {
       return ok(undefined);
     } catch (err) {
       return fail({ reason: describeGrpcError(err) });
+    } finally {
+      // Story 5.7 — open-exactly-one: never return with a live stream. Destroying the
+      // Duplex cancels the subscribe RPC and releases the server-side stream slot, so a
+      // reconnect (after withReconnect's backoff settle window) opens a fresh one without
+      // tripping "max concurrent streams (1) reached for your tier" on SolInfra's tier.
+      closeGrpcStream(grpcStream);
     }
   }
 

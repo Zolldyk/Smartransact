@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeEndpoint, describeGrpcError } from "./grpc-adapter.js";
+import { normalizeEndpoint, describeGrpcError, closeGrpcStream } from "./grpc-adapter.js";
 
 describe("normalizeEndpoint", () => {
   it("(a) adds https:// when no scheme present", () => {
@@ -38,5 +38,22 @@ describe("describeGrpcError", () => {
     a.cause = a; // cycle
     expect(describeGrpcError(a)).toContain("a");
     expect(describeGrpcError("just a string")).toBe("just a string");
+  });
+});
+
+describe("closeGrpcStream", () => {
+  it("(a) destroys a stream that exposes destroy() — frees the rationed stream slot", () => {
+    let destroyed = 0;
+    closeGrpcStream({ destroy: () => { destroyed += 1; } });
+    expect(destroyed).toBe(1);
+  });
+
+  it("(b) is a no-op for undefined or a stream without destroy()", () => {
+    expect(() => closeGrpcStream(undefined)).not.toThrow();
+    expect(() => closeGrpcStream({})).not.toThrow();
+  });
+
+  it("(c) swallows a throwing destroy() (stream already closing)", () => {
+    expect(() => closeGrpcStream({ destroy: () => { throw new Error("already closed"); } })).not.toThrow();
   });
 });
