@@ -1,5 +1,23 @@
 import { describe, it, expect } from "vitest";
-import { ConfigFileSchema, GuardrailsSchema, ProfileSchema } from "./config-schema.js";
+import { ConfigFileSchema, GuardrailsSchema, ProfileSchema, LlmConfigSchema } from "./config-schema.js";
+
+describe("LlmConfigSchema (Story 7.3)", () => {
+  it("accepts the claude provider", () => {
+    expect(LlmConfigSchema.safeParse({ provider: "claude", model: "claude-sonnet-4-6" }).success).toBe(true);
+  });
+  it("defaults provider to gemini when omitted (backward compatible)", () => {
+    const r = LlmConfigSchema.safeParse({ model: "gemini-2.5-flash" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.provider).toBe("gemini");
+  });
+  it("accepts an optional baseURL (valid url) and rejects a non-url", () => {
+    expect(LlmConfigSchema.safeParse({ provider: "groq", model: "x", baseURL: "https://api.groq.com/openai/v1" }).success).toBe(true);
+    expect(LlmConfigSchema.safeParse({ provider: "groq", model: "x", baseURL: "not-a-url" }).success).toBe(false);
+  });
+  it("rejects an unknown provider", () => {
+    expect(LlmConfigSchema.safeParse({ provider: "openai", model: "x" }).success).toBe(false);
+  });
+});
 
 const GUARDRAIL_DEFAULTS = {
   maxTipLamports: 1_000_000,

@@ -24,8 +24,7 @@ import { lamportsToNumber, slotsToNumber } from "./units.js";
 import type { TxStatusChanged } from "../schemas/stream-event-schema.js";
 import type { FailureContext, TipMarketData, PriorAttempt } from "../schemas/observation-schema.js";
 import { runEpisode, type LoopContext, type AgentStep, type StepFeedback } from "../agent/agent-loop.js";
-import { GeminiProvider } from "../agent/llm/gemini-provider.js";
-import { GroqProvider } from "../agent/llm/groq-provider.js";
+import { createLlmProvider } from "../agent/llm/provider-factory.js";
 import type { LlmProvider } from "../agent/llm/llm-provider.js";
 
 // Named constants — no bare literals in loop conditions (CM1)
@@ -260,10 +259,12 @@ async function _runBundleLoop(
   if (tipAccounts.length === 0) return;
   const tipAccount = tipAccounts[0]!;
 
-  const provider: LlmProvider =
-    config.llm.provider === "groq"
-      ? new GroqProvider(config.llmApiKey, config.llm.model)
-      : new GeminiProvider(config.llmApiKey, config.llm.model);
+  const provider: LlmProvider = createLlmProvider({
+    provider: config.llm.provider,
+    apiKey: config.llmApiKey,
+    model: config.llm.model,
+    baseURL: config.llm.baseURL,
+  });
 
   console.log(`[session] submitting ${config.bundleCount} bundles — dryRun: ${config.guardrails.dryRun}`);
 

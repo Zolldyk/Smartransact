@@ -30,8 +30,11 @@ export const FaultInjectionSchema = z.object({
 });
 
 export const LlmConfigSchema = z.object({
-  provider: z.enum(["gemini", "groq"]).optional().default("gemini"),
+  provider: z.enum(["gemini", "groq", "claude"]).optional().default("gemini"),
   model: z.string().min(1),
+  // Reserved for the deferred generic OpenAI-compatible provider (Story 7.2);
+  // unused by gemini/groq/claude. `.url()` so a real endpoint is required when set.
+  baseURL: z.string().url().optional(),
 });
 
 const WsProfileSchema = z.object({
