@@ -35,4 +35,13 @@ describe("extractClaudeReasoning", () => {
     expect(out.ok).toBe(true);
     if (out.ok) expect(out.value.thinkingTrace).toBe("");
   });
+
+  it("(e) strips a not-applicable zero optional (holdSlots:0 on refresh) → ok", () => {
+    // holdSlots is .positive(); a stray 0 on a non-hold action would otherwise
+    // be rejected. Normalization drops it (code-review patch).
+    const out = extractClaudeReasoning([
+      { type: "text", text: JSON.stringify({ ...validDecision, holdSlots: 0 }) },
+    ]);
+    expect(out.ok).toBe(true);
+  });
 });
