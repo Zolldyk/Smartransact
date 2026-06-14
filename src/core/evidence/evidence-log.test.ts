@@ -8,6 +8,7 @@ afterEach(() => {
     "logs/lifecycle-test-a.jsonl",
     "logs/lifecycle-test-b.jsonl",
     "logs/lifecycle-test-c.jsonl",
+    "logs/lifecycle-test-d.jsonl",
   ];
   for (const f of files) {
     if (existsSync(f)) rmSync(f);
@@ -58,6 +59,40 @@ describe("EvidenceLog", () => {
       log.append({ event: "not-a-real-event" } as never),
     ).toThrow();
     log.close();
+  });
+
+  it("(d) onAppend fires exactly once, with the event, AFTER the file is written", () => {
+    let callCount = 0;
+    let receivedEvent: unknown;
+    let fileContentsAtCallback = "";
+
+    const log = new EvidenceLog("test-d", {
+      suppressSigint: true,
+      onAppend: (event) => {
+        callCount++;
+        receivedEvent = event;
+        // The persisted line MUST already exist when the callback runs (AC1).
+        fileContentsAtCallback = readFileSync(
+          "logs/lifecycle-test-d.jsonl",
+          "utf-8",
+        );
+      },
+    });
+
+    const event = {
+      event: "bundleSubmitted" as const,
+      at: "2026-06-11T00:00:00.000Z",
+      bundleId: "bundle-onappend",
+      slot: 414627551n,
+      tipLamports: 1000000n,
+    };
+    log.append(event);
+    log.close();
+
+    expect(callCount).toBe(1);
+    expect(receivedEvent).toBe(event);
+    // Callback observed the persisted line — proves it fired post-write.
+    expect(fileContentsAtCallback).toContain("bundle-onappend");
   });
 
   it("close() unregisters the SIGINT handler", () => {

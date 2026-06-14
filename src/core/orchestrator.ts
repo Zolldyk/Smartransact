@@ -22,6 +22,7 @@ import { injectBlockhashExpiry } from "./fault/blockhash-expiry.js";
 import { executeDecision } from "./execute/decision-executor.js";
 import { lamportsToNumber, slotsToNumber } from "./units.js";
 import type { TxStatusChanged } from "../schemas/stream-event-schema.js";
+import type { EvidenceEvent } from "../schemas/evidence-event-schema.js";
 import type { FailureContext, TipMarketData, PriorAttempt } from "../schemas/observation-schema.js";
 import { runEpisode, type LoopContext, type AgentStep, type StepFeedback } from "../agent/agent-loop.js";
 import { createLlmProvider } from "../agent/llm/provider-factory.js";
@@ -38,6 +39,14 @@ export type SessionParams = {
   /** Active profile name written to `sessionStarted` evidence. Defaults to
    * `config.adapter` if omitted; CLI commands (5.2/5.3) pass the real name. */
   profile?: string;
+  /** Optional evidence tap (Story 8.1): fires for every persisted evidence
+   * event, so a web backend can stream exactly what is written to JSONL. The
+   * CLI passes neither this nor `signal`; both are backward-compatible. */
+  onEvidence?: (event: EvidenceEvent) => void;
+  /** Optional external cancel signal (Story 8.1): linked to the internal
+   * AbortController so the backend can tear down a session on WS disconnect or
+   * time-box expiry (NFR9 — sessions are rate-limited and time-boxed). */
+  signal?: AbortSignal;
 };
 
 // ─── Internal types ───────────────────────────────────────────────────────────
@@ -84,6 +93,15 @@ export async function runSession(params: SessionParams): Promise<void> {
   const sessionId = generateSessionId();
   const ac = new AbortController();
 
+  // Link an optional external cancel signal (Story 8.1) to the internal
+  // controller: if it is already aborted, abort now; otherwise abort when it
+  // fires. The CLI passes no signal, so this is inert there.
+  if (params.signal?.aborted) {
+    ac.abort();
+  } else {
+    params.signal?.addEventListener("abort", () => ac.abort(), { once: true });
+  }
+
   const onSigint = () => ac.abort();
   // Register BEFORE constructing EvidenceLog (ensures orchestrator's handler
   // fires first so abort() runs before any downstream SIGINT handlers).
@@ -92,7 +110,12 @@ export async function runSession(params: SessionParams): Promise<void> {
   // suppressSigint: orchestrator owns shutdown — EvidenceLog must NOT call
   // process.exit(0) on SIGINT. The finally block below guarantees sessionEnded
   // and log.close() run before any exit.
-  const evidenceLog = new EvidenceLog(sessionId, { suppressSigint: true });
+  // onEvidence: optional web evidence tap (Story 8.1) — forwards every
+  // persisted event; undefined for the CLI.
+  const evidenceLog = new EvidenceLog(sessionId, {
+    suppressSigint: true,
+    onAppend: params.onEvidence,
+  });
 
   evidenceLog.append({
     event: "sessionStarted",

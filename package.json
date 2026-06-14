@@ -16,19 +16,24 @@
     "test": "vitest run",
     "render-log": "tsx src/core/evidence/render-markdown.ts",
     "smoke-test": "tsx scripts/smoke-test.ts",
-    "agent-integration-test": "tsx scripts/agent-integration-test.ts"
+    "agent-integration-test": "tsx scripts/agent-integration-test.ts",
+    "web:server": "tsx web/server/index.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
+    "@fastify/rate-limit": "^10.3.0",
     "@google/genai": "^2.8.0",
     "@solana/kit": "^6.9.0",
     "@triton-one/yellowstone-grpc": "^5.0.8",
     "commander": "^15.0.0",
+    "fastify": "^5.8.5",
     "jito-ts": "^4.2.1",
+    "ws": "^8.21.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
