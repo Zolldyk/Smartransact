@@ -33,6 +33,19 @@ describe("tip-data", () => {
     }
   });
 
+  it("(a2) rejects non-finite numeric fields (NaN/Infinity) instead of crashing computeTip", () => {
+    const base = {
+      landed_tips_25th_percentile: 0.000001,
+      landed_tips_50th_percentile: 0.00001,
+      landed_tips_75th_percentile: 0.00007,
+      landed_tips_95th_percentile: 0.0001,
+      landed_tips_99th_percentile: 0.0006,
+      ema_landed_tips_50th_percentile: 0.000008,
+    };
+    expect(parseTipFloorResponse([{ ...base, ema_landed_tips_50th_percentile: NaN }]).ok).toBe(false);
+    expect(parseTipFloorResponse([{ ...base, landed_tips_50th_percentile: Infinity }]).ok).toBe(false);
+  });
+
   it("(b) fetchTipFloor returns fail when fetch rejects", async () => {
     vi.stubGlobal("fetch", () => Promise.reject(new Error("Network error")));
 

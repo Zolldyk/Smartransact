@@ -32,9 +32,13 @@ export function parseTipFloorResponse(data: unknown): Result<TipFloorData, { rea
     const emaP50 = el["ema_landed_tips_50th_percentile"];
     if (
       typeof p25 !== "number" || typeof p50 !== "number" || typeof p75 !== "number" ||
-      typeof p95 !== "number" || typeof p99 !== "number" || typeof emaP50 !== "number"
+      typeof p95 !== "number" || typeof p99 !== "number" || typeof emaP50 !== "number" ||
+      // Reject NaN/Infinity (typeof === "number") — they survive to computeTip's
+      // `BigInt(Math.round(...))`, which throws RangeError and aborts the bundle loop.
+      !Number.isFinite(p25) || !Number.isFinite(p50) || !Number.isFinite(p75) ||
+      !Number.isFinite(p95) || !Number.isFinite(p99) || !Number.isFinite(emaP50)
     ) {
-      return fail({ reason: "tip_floor response missing expected numeric fields" });
+      return fail({ reason: "tip_floor response has missing or non-finite numeric fields" });
     }
     return ok({
       floorPercentiles: {

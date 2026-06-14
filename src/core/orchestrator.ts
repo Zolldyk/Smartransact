@@ -199,6 +199,15 @@ export async function runSession(params: SessionParams): Promise<void> {
       }
     }
 
+    // The stream loop has ended (abort or completion). Resolve any bundle still
+    // parked in `_awaitSettlement` — otherwise that promise (resolved ONLY from
+    // the now-stopped stream loop) hangs forever, and `await submissionTask`
+    // below never returns, so `sessionEnded` is never written (SIGINT hang).
+    for (const [, entry] of settlements) {
+      entry.resolve({ landed: false, reason: "session ended before settlement" });
+    }
+    settlements.clear();
+
     await submissionTask;
   } catch (err) {
     endReason = err instanceof Error ? err.message : "error";

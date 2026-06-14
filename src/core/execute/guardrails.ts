@@ -9,7 +9,10 @@ export function applyGuardrails(
   let clamped = false;
   let { action, newTipLamports, holdSlots } = decision;
 
-  if (attemptsRemaining === 0 && (action === "refresh" || action === "adjust_tip")) {
+  // At zero attempts remaining, ANY non-abort action must become abort. Missing
+  // `hold` here let a repeated `hold` decision drive priorAttempts past maxRetries,
+  // making `attemptsRemaining` go negative → `buildObservation.parse()` throws.
+  if (attemptsRemaining === 0 && action !== "abort") {
     action = "abort";
     clamped = true;
   }

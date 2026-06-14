@@ -65,4 +65,20 @@ describe("applyGuardrails", () => {
     expect(decision.diagnosis).toBe(input.diagnosis);
     expect(decision.rationale).toBe(input.rationale);
   });
+
+  it("(f) attemptsRemaining === 0 + hold → override to abort (prevents negative-attempts crash)", () => {
+    const { decision, clamped } = applyGuardrails(
+      { ...BASE_DECISION, action: "hold", holdSlots: 10 },
+      G,
+      0,
+    );
+    expect(decision.action).toBe("abort");
+    expect(clamped).toBe(true);
+  });
+
+  it("(g) attemptsRemaining === 0 + abort → stays abort, not clamped", () => {
+    const { decision, clamped } = applyGuardrails({ ...BASE_DECISION, action: "abort" }, G, 0);
+    expect(decision.action).toBe("abort");
+    expect(clamped).toBe(false);
+  });
 });
