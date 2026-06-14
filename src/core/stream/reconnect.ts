@@ -46,6 +46,11 @@ export async function withReconnect(
     const result = await adapter.start(signal);
     if (signal.aborted || result.ok) break;
     const delayMs = computeBackoffDelay(attempt, policy);
+    // Surface the failure reason to the terminal — otherwise a connection that
+    // never establishes (e.g. "max concurrent streams reached for your tier")
+    // loops here in total silence and looks like the command "did nothing".
+    const reason = (result.failure as { reason?: string }).reason ?? "unknown error";
+    console.error(`[stream] connection failed (attempt ${attempt}): ${reason} — retrying in ${delayMs}ms`);
     await _sleep(delayMs, signal);
     if (signal.aborted) break;
     stream.push({ kind: "streamReconnected", at: new Date().toISOString(), attempt });

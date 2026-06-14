@@ -26,9 +26,12 @@ export function loadConfig(profileOverride?: string): AppConfig {
     process.exit(1);
   }
 
-  const geminiApiKey = process.env["GEMINI_API_KEY"];
-  if (!geminiApiKey) {
-    console.error("Config error: GEMINI_API_KEY is not set. Add it to .env (see .env.example).");
+  // The active profile's llm.provider selects which API key is required.
+  const llmProvider = profileRaw.llm.provider;
+  const llmEnvVar = llmProvider === "groq" ? "GROQ_API_KEY" : "GEMINI_API_KEY";
+  const llmApiKey = process.env[llmEnvVar];
+  if (!llmApiKey) {
+    console.error(`Config error: ${llmEnvVar} is not set (required for llm.provider "${llmProvider}"). Add it to .env (see .env.example).`);
     process.exit(1);
   }
 
@@ -61,5 +64,5 @@ export function loadConfig(profileOverride?: string): AppConfig {
     profile = { ...profile, rpcEndpoint };
   }
 
-  return { geminiApiKey, keypairPath, ...profile };
+  return { llmApiKey, keypairPath, ...profile };
 }

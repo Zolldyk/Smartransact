@@ -63,6 +63,14 @@ describe("ConfigFileSchema", () => {
     };
     expect(ConfigFileSchema.safeParse(invalid).success).toBe(false);
   });
+
+  it("accepts a ws profile whose rpcEndpoint carries a ${VAR} placeholder (expanded by config.ts)", () => {
+    const result = ProfileSchema.safeParse({
+      ...WS_PROFILE,
+      rpcEndpoint: "https://fra.rpc.solinfra.dev/sol?api_key=${SOLINFRA_RPC_KEY}",
+    });
+    expect(result.success).toBe(true);
+  });
 });
 
 describe("GuardrailsSchema", () => {

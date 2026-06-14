@@ -23,7 +23,7 @@ const wsProfile: Profile = {
   bundleCount: 12,
   faultInjection: { atBundle: 6 },
   guardrails: baseGuardrails,
-  llm: { model: "gemini-2.5-flash" },
+  llm: { provider: "gemini", model: "gemini-2.5-flash" },
 };
 
 const grpcProfile: Profile = {
@@ -34,7 +34,7 @@ const grpcProfile: Profile = {
   bundleCount: 3,
   faultInjection: { atBundle: 1 },
   guardrails: baseGuardrails,
-  llm: { model: "gemini-2.5-flash" },
+  llm: { provider: "gemini", model: "gemini-2.5-flash" },
 };
 
 describe("createAdapter", () => {

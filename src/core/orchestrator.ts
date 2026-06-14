@@ -25,6 +25,8 @@ import type { TxStatusChanged } from "../schemas/stream-event-schema.js";
 import type { FailureContext, TipMarketData, PriorAttempt } from "../schemas/observation-schema.js";
 import { runEpisode, type LoopContext, type AgentStep, type StepFeedback } from "../agent/agent-loop.js";
 import { GeminiProvider } from "../agent/llm/gemini-provider.js";
+import { GroqProvider } from "../agent/llm/groq-provider.js";
+import type { LlmProvider } from "../agent/llm/llm-provider.js";
 
 // Named constants — no bare literals in loop conditions (CM1)
 const MAX_QUEUE_SIZE = 1_000;
@@ -249,7 +251,10 @@ async function _runBundleLoop(
   if (tipAccounts.length === 0) return;
   const tipAccount = tipAccounts[0]!;
 
-  const provider = new GeminiProvider(config.geminiApiKey, config.llm.model);
+  const provider: LlmProvider =
+    config.llm.provider === "groq"
+      ? new GroqProvider(config.llmApiKey, config.llm.model)
+      : new GeminiProvider(config.llmApiKey, config.llm.model);
 
   console.log(`[session] submitting ${config.bundleCount} bundles — dryRun: ${config.guardrails.dryRun}`);
 
@@ -439,7 +444,7 @@ type AgentEpisodeParams = {
   tipAccounts: string[];
   tipAccount: string;
   tipMarket: TipMarketData;
-  provider: GeminiProvider;
+  provider: LlmProvider;
   config: AppConfig;
   jito: JitoClient;
   rpc: ReturnType<typeof createSolanaRpc>;

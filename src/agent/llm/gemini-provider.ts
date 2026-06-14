@@ -83,34 +83,43 @@ export function extractReasoning(parts: GeminiPart[]): LlmResult {
 }
 
 export class GeminiProvider implements LlmProvider {
+  private static readonly MAX_RETRIES = 4;
   private readonly ai: GoogleGenAI;
   constructor(apiKey: string, private readonly model: string) {
     this.ai = new GoogleGenAI({ apiKey });
   }
 
   async reason(observation: AgentObservation): Promise<LlmResult> {
-    try {
-      const response = await this.ai.models.generateContent({
-        model: this.model,
-        contents: JSON.stringify(observation),
-        config: {
-          systemInstruction: SYSTEM_INSTRUCTION,
-          temperature: TEMPERATURE,
-          responseMimeType: "application/json",
-          responseJsonSchema: DECISION_JSON_SCHEMA,
-          thinkingConfig: { includeThoughts: true },
-        },
-      });
-      const parts = response.candidates?.[0]?.content?.parts ?? [];
-      return extractReasoning(parts as GeminiPart[]);
-    } catch (err) {
-      return {
-        ok: false,
-        failure: {
-          reason: "gemini_request_failed",
-          rawError: err instanceof Error ? err.message : String(err),
-        },
-      };
+    let lastError = "";
+    for (let attempt = 0; attempt < GeminiProvider.MAX_RETRIES; attempt++) {
+      try {
+        const response = await this.ai.models.generateContent({
+          model: this.model,
+          contents: JSON.stringify(observation),
+          config: {
+            systemInstruction: SYSTEM_INSTRUCTION,
+            temperature: TEMPERATURE,
+            responseMimeType: "application/json",
+            responseJsonSchema: DECISION_JSON_SCHEMA,
+            thinkingConfig: { includeThoughts: true },
+          },
+        });
+        const parts = response.candidates?.[0]?.content?.parts ?? [];
+        return extractReasoning(parts as GeminiPart[]);
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err);
+        // Free-tier Gemini rate-limits (~10 RPM); rapid back-to-back episodes
+        // trip 429/RESOURCE_EXHAUSTED. Back off and retry so the agent keeps
+        // reasoning instead of dropping the decision. Non-rate-limit errors fail fast.
+        const retryable = /429|resource_exhausted|quota|rate.?limit|unavailable|503|overloaded/i.test(lastError);
+        if (retryable && attempt < GeminiProvider.MAX_RETRIES - 1) {
+          const backoff = Math.min(2_000 * 2 ** attempt, 20_000) + Math.floor(Math.random() * 500);
+          await new Promise((r) => setTimeout(r, backoff));
+          continue;
+        }
+        break;
+      }
     }
+    return { ok: false, failure: { reason: "gemini_request_failed", rawError: lastError } };
   }
 }

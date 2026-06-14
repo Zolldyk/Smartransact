@@ -30,12 +30,13 @@ export const FaultInjectionSchema = z.object({
 });
 
 export const LlmConfigSchema = z.object({
+  provider: z.enum(["gemini", "groq"]).optional().default("gemini"),
   model: z.string().min(1),
 });
 
 const WsProfileSchema = z.object({
   adapter: z.literal("ws"),
-  rpcEndpoint: z.string().url(),
+  rpcEndpoint: z.string().min(1), // may contain ${VAR} placeholders (e.g. SolInfra ?api_key=); expanded by config.ts
   wsEndpoint: z.string().url(),
   jitoBlockEngineUrl: z.string().url(),
   bundleCount: z.number().int().positive(),
@@ -76,7 +77,7 @@ export const ConfigFileSchema = z.object({
 export type Profile = z.infer<typeof ProfileSchema>;
 export type ConfigFile = z.infer<typeof ConfigFileSchema>;
 export type AppConfig = {
-  geminiApiKey: string;
+  llmApiKey: string;
   keypairPath: string;
 } & Profile;
 export type Guardrails = z.infer<typeof GuardrailsSchema>;

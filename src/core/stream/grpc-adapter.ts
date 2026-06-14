@@ -1,4 +1,6 @@
-import ClientDefault, { CommitmentLevel, type SubscribeUpdate } from "@triton-one/yellowstone-grpc";
+import ClientDefault from "@triton-one/yellowstone-grpc";
+import type { SubscribeUpdate } from "@triton-one/yellowstone-grpc";
+import * as YellowstoneGrpc from "@triton-one/yellowstone-grpc";
 import { createSolanaRpc, type Signature } from "@solana/kit";
 import type { LifecycleStream } from "./lifecycle-stream.js";
 import { invertLeaderSchedule } from "./ws-adapter.js";
@@ -6,21 +8,60 @@ import { ok, fail, type Result } from "../result.js";
 
 const LEADER_POLL_MS = 30_000;
 
-// TypeScript 6 + NodeNext resolves the default import of this CJS package to the
-// module namespace rather than the exported class constructor. Cast it explicitly.
+// This is a CommonJS package and the runtime export shape differs by loader.
+// Under tsx's ESM interop (the only runtime this project uses — tsconfig is noEmit),
+// the *default* import resolves to the module-namespace OBJECT: the real Client
+// constructor hangs off `.default` and enums like `CommitmentLevel` are sibling
+// keys. Under plain Node ESM the default import IS the Client constructor and the
+// enums arrive as named exports. A static `import { CommitmentLevel }` throws at
+// instantiation under tsx, and `new ClientDefault()` throws "not a constructor"
+// because the default is the namespace object — both were latent until the gRPC
+// path first ran live (Story 5.6). Resolve both defensively across loaders.
+const grpcDefault = ClientDefault as unknown as Record<string, unknown>;
+const grpcExports: Record<string, unknown> =
+  typeof ClientDefault === "function" ? (YellowstoneGrpc as unknown as Record<string, unknown>) : grpcDefault;
+
 type YellowstoneClientInstance = {
   connect(): Promise<void>;
   subscribe(): Promise<AsyncIterable<SubscribeUpdate>>;
 };
-const YellowstoneClient = ClientDefault as unknown as new (
+const YellowstoneClient = (typeof ClientDefault === "function"
+  ? ClientDefault
+  : grpcDefault.default) as unknown as new (
   endpoint: string,
   xToken: string | undefined,
   channelOptions: undefined,
 ) => YellowstoneClientInstance;
 
+const CommitmentLevel = (grpcExports.CommitmentLevel ??
+  grpcDefault.CommitmentLevel) as { PROCESSED: number };
+
 export function normalizeEndpoint(endpoint: string): string {
   if (endpoint.includes("://")) return endpoint;
   return `https://${endpoint}`;
+}
+
+/**
+ * The napi (Rust/tonic) gRPC client nests the real failure under `.cause`
+ * (e.g. top-level "failed to open subscribe stream" wrapping the actual
+ * "max concurrent streams (1) reached for your tier"). Walk the chain so the
+ * deepest, most specific message reaches the operator instead of the generic top.
+ */
+export function describeGrpcError(err: unknown): string {
+  const messages: string[] = [];
+  let current: unknown = err;
+  const seen = new Set<unknown>();
+  while (current && !seen.has(current)) {
+    seen.add(current);
+    const maybeMessage = (current as { message?: unknown }).message;
+    const msg = typeof maybeMessage === "string" ? maybeMessage : String(current);
+    if (msg && !messages.includes(msg)) messages.push(msg);
+    current = (current as { cause?: unknown }).cause;
+  }
+  // Deepest message is the most specific; surface it, with the top for context.
+  if (messages.length === 0) return "unknown gRPC error";
+  if (messages.length === 1) return messages[0]!;
+  return `${messages[messages.length - 1]} (${messages[0]})`;
 }
 
 export class GrpcAdapter {
@@ -77,7 +118,7 @@ export class GrpcAdapter {
       }
       return ok(undefined);
     } catch (err) {
-      return fail({ reason: err instanceof Error ? err.message : String(err) });
+      return fail({ reason: describeGrpcError(err) });
     }
   }
 

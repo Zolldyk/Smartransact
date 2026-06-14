@@ -91,7 +91,7 @@ import type { TipMarketData } from "../src/schemas/observation-schema.js";
     lastTipLamports: 2000,
   };
 
-  const provider = new GeminiProvider(config.geminiApiKey, config.llm.model);
+  const provider = new GeminiProvider(config.llmApiKey, config.llm.model);
 
   console.log("[ep-001] Running episode 1 — low market, leader close...");
   const result1 = await runEpisode({

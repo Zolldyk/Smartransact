@@ -10,6 +10,14 @@ export type LiveTipData = {
 
 type TipFloorData = Omit<LiveTipData, "observedRecentTips">;
 
+const LAMPORTS_PER_SOL = 1_000_000_000;
+
+/** The Jito tip_floor API reports landed tips in **SOL** (fractional floats, e.g.
+ * 0.00001). The rest of the stack — computeTip, guardrails, the bundle tip
+ * transfer — is in **lamports**. Convert here so a 0.00001 SOL median becomes
+ * 10_000 lamports instead of rounding to 0 and clamping every bundle to the floor. */
+const solToLamports = (sol: number): number => Math.round(sol * LAMPORTS_PER_SOL);
+
 export function parseTipFloorResponse(data: unknown): Result<TipFloorData, { reason: string }> {
   try {
     if (!Array.isArray(data) || data.length === 0) {
@@ -28,7 +36,16 @@ export function parseTipFloorResponse(data: unknown): Result<TipFloorData, { rea
     ) {
       return fail({ reason: "tip_floor response missing expected numeric fields" });
     }
-    return ok({ floorPercentiles: { p25, p50, p75, p95, p99 }, emaP50 });
+    return ok({
+      floorPercentiles: {
+        p25: solToLamports(p25),
+        p50: solToLamports(p50),
+        p75: solToLamports(p75),
+        p95: solToLamports(p95),
+        p99: solToLamports(p99),
+      },
+      emaP50: solToLamports(emaP50),
+    });
   } catch (err) {
     return fail({ reason: err instanceof Error ? err.message : String(err) });
   }

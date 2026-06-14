@@ -37,37 +37,54 @@ export class JitoClient {
     if (wait > 0) await this._sleep(wait, signal);
   }
 
+  // Jito's public block engine rate-limits aggressively; a single 429 must not
+  // sink the whole session. Retry 429/503 with exponential backoff + jitter.
+  // A 429 means the request was rejected before processing, so retrying sendBundle
+  // is safe (no risk of double-submission).
+  private static readonly MAX_RETRIES = 5;
+
   private async _jsonRpc<T>(
     method: string,
     params: unknown[],
     signal: AbortSignal,
   ): Promise<Result<T, { reason: string }>> {
-    try {
-      await this._rateLimit(signal);
-      const res = await fetch(`${this.blockEngineUrl}/api/v1/bundles`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-        signal,
-      });
-      if (!res.ok) {
-        return fail({ reason: `HTTP ${res.status} from ${method}` });
+    for (let attempt = 0; attempt < JitoClient.MAX_RETRIES; attempt++) {
+      try {
+        await this._rateLimit(signal);
+        const res = await fetch(`${this.blockEngineUrl}/api/v1/bundles`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+          signal,
+        });
+        if ((res.status === 429 || res.status === 503) && attempt < JitoClient.MAX_RETRIES - 1) {
+          const backoff = Math.min(1_000 * 2 ** attempt, 8_000) + Math.floor(Math.random() * 250);
+          await this._sleep(backoff, signal);
+          continue;
+        }
+        if (!res.ok) {
+          return fail({ reason: `HTTP ${res.status} from ${method}` });
+        }
+        const body = (await res.json()) as { result?: T; error?: { message: string } };
+        if (body.error) {
+          return fail({ reason: body.error.message });
+        }
+        return ok(body.result as T);
+      } catch (err) {
+        if (signal.aborted) return fail({ reason: err instanceof Error ? err.message : String(err) });
+        return fail({ reason: err instanceof Error ? err.message : String(err) });
       }
-      const body = (await res.json()) as { result?: T; error?: { message: string } };
-      if (body.error) {
-        return fail({ reason: body.error.message });
-      }
-      return ok(body.result as T);
-    } catch (err) {
-      return fail({ reason: err instanceof Error ? err.message : String(err) });
     }
+    return fail({ reason: `HTTP 429 from ${method} (exhausted retries)` });
   }
 
   async sendBundle(
     transactions: string[],
     signal: AbortSignal,
   ): Promise<Result<string, { reason: string }>> {
-    return this._jsonRpc<string>("sendBundle", [transactions], signal);
+    // bundle-builder.ts emits base64 wire transactions; Jito defaults to base58
+    // and rejects with HTTP 400 unless the encoding is declared explicitly.
+    return this._jsonRpc<string>("sendBundle", [transactions, { encoding: "base64" }], signal);
   }
 
   async getBundleStatuses(

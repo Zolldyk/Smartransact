@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeEndpoint } from "./grpc-adapter.js";
+import { normalizeEndpoint, describeGrpcError } from "./grpc-adapter.js";
 
 describe("normalizeEndpoint", () => {
   it("(a) adds https:// when no scheme present", () => {
@@ -16,5 +16,27 @@ describe("normalizeEndpoint", () => {
 
   it("(d) adds https:// for bare host:port", () => {
     expect(normalizeEndpoint("localhost:10000")).toBe("https://localhost:10000");
+  });
+});
+
+describe("describeGrpcError", () => {
+  it("(a) surfaces the deepest cause with the top-level for context", () => {
+    const deep = new Error('max concurrent streams (1) reached for your tier');
+    const mid = new Error("gRPC status: resource exhausted", { cause: deep });
+    const top = new Error("failed to open subscribe stream", { cause: mid });
+    const out = describeGrpcError(top);
+    expect(out).toContain("max concurrent streams (1) reached for your tier");
+    expect(out).toContain("failed to open subscribe stream");
+  });
+
+  it("(b) returns the single message when there is no cause chain", () => {
+    expect(describeGrpcError(new Error("plain failure"))).toBe("plain failure");
+  });
+
+  it("(c) handles non-Error and cyclic causes without looping", () => {
+    const a: { message: string; cause?: unknown } = { message: "a" };
+    a.cause = a; // cycle
+    expect(describeGrpcError(a)).toContain("a");
+    expect(describeGrpcError("just a string")).toBe("just a string");
   });
 });
