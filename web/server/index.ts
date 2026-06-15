@@ -27,7 +27,7 @@ import { buildSessionConfig, ClientOverridesSchema } from "./session-config.js";
 import { serializeEvidence } from "./serialize.js";
 
 // ─── Tunables (named constants — no bare literals) ──────────────────────────
-const PORT = Number(process.env["WEB_SERVER_PORT"] ?? 8787);
+const PORT = Number(process.env["PORT"] ?? process.env["WEB_SERVER_PORT"] ?? 8787);
 const HOST = "0.0.0.0";
 const WS_PATH = "/ws";
 const SANDBOX_PROFILE = "mainnet-ws"; // credential-free WSS slots (NOT gRPC)

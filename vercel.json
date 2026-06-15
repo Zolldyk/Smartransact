@@ -1,0 +1,6 @@
+{
+  "rootDirectory": "web/app",
+  "framework": "nextjs",
+  "buildCommand": "npm run prebuild && npm run build",
+  "outputDirectory": ".next"
+}

@@ -19,3 +19,7 @@ docs/*
 
 # Playwright MCP tool artifacts (screenshots/snapshots) — not part of the deliverable
 .playwright-mcp/
+
+# Playwright test output
+playwright-report/
+test-results/

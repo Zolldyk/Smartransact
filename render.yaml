@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: smartransact-backend
+    env: node
+    region: frankfurt
+    plan: free
+    rootDir: .
+    buildCommand: npm install
+    startCommand: npm run web:server
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SOLINFRA_RPC_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
