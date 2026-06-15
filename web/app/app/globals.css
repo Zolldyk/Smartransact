@@ -946,13 +946,14 @@ body {
 .recovery {
   margin-top: 14px;
   position: relative;
-  min-height: 168px;
+  padding-bottom: 24px;
 }
 .recovery svg.loop {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+  pointer-events: none;
 }
 .recovery svg.loop path {
   fill: none;
@@ -981,10 +982,8 @@ body {
   top: 132px;
 }
 .agentcard {
-  position: absolute;
-  left: 50%;
-  top: 30px;
-  transform: translateX(-50%);
+  position: relative;
+  margin: 30px auto 0;
   width: min(560px, 92%);
   background: linear-gradient(180deg, var(--color-panel-2), var(--color-panel));
   border-radius: var(--radius-card);
