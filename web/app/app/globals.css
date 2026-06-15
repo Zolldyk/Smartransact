@@ -1383,3 +1383,177 @@ body {
     transition: none;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   STORY 8.4 — Evidence Replay View (EvidenceTable + StatCards).
+   max-width 1180px per DESIGN.md "Evidence 1180". Only existing Graphite tokens.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Evidence shell ─────────────────────────────────────────────────────────*/
+.ev-wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  width: 100%;
+}
+.ev-head {
+  padding: 48px 0 6px;
+}
+
+/* ── Stat cards ─────────────────────────────────────────────────────────────*/
+.ev-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-top: 26px;
+}
+.ev-stat {
+  background: var(--color-panel);
+  border-radius: var(--radius-panel);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  padding: 18px;
+}
+.ev-stat-v {
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.ev-stat-v.s {
+  color: var(--color-success);
+}
+.ev-stat-v.a {
+  color: var(--color-caution);
+}
+.ev-stat-v.c {
+  color: var(--color-accent-bright);
+}
+.ev-stat-k {
+  font-size: 11.5px;
+  color: var(--color-muted);
+  margin-top: 5px;
+}
+
+/* ── Table card ─────────────────────────────────────────────────────────────*/
+.ev-tablecard {
+  margin-top: 18px;
+  background: var(--color-panel);
+  border-radius: var(--radius-panel);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  overflow: hidden;
+}
+.ev-tbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px 18px;
+  border-bottom: 1px solid var(--color-line);
+}
+.ev-tbar .ev-tbar-t {
+  font-size: 13px;
+  font-weight: 620;
+}
+
+/* ── Table ──────────────────────────────────────────────────────────────────*/
+.ev-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.ev-table th {
+  text-align: left;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-faint);
+  font-weight: 600;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-line);
+}
+.ev-row td {
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--color-hair);
+  font-size: 12.5px;
+  font-family: var(--font-mono);
+}
+.ev-row:hover {
+  background: var(--color-panel-2);
+}
+.ev-row:focus-visible {
+  outline: 2px solid var(--color-accent-bright);
+  outline-offset: -2px;
+}
+.ev-row.expanded td {
+  border-bottom: 0;
+}
+.ev-detail-row td {
+  padding: 0;
+  border-bottom: 1px solid var(--color-line);
+}
+.ev-detail {
+  padding: 16px 18px;
+  background: var(--color-panel-2);
+  font-size: 12.5px;
+}
+
+/* ── Status dots ────────────────────────────────────────────────────────────*/
+.ev-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 7px;
+  vertical-align: middle;
+}
+.ev-dot.ok {
+  background: var(--color-success);
+}
+.ev-dot.rec {
+  background: var(--color-caution);
+}
+.ev-dot.fail {
+  background: var(--color-accent-bright);
+}
+.ev-dot.pend {
+  background: var(--color-faint);
+}
+
+/* ── Slot explorer links ────────────────────────────────────────────────────*/
+.slot-link {
+  color: var(--color-accent);
+  border-bottom: 1px dotted rgba(201, 128, 94, 0.32);
+  text-decoration: none;
+}
+.slot-link:hover {
+  color: var(--color-accent-bright);
+}
+
+/* ── Decision chip ──────────────────────────────────────────────────────────*/
+.ev-chip {
+  display: inline-block;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  color: var(--color-accent);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────────────*/
+.ev-foot {
+  margin: 18px 0 70px;
+  font-size: 12px;
+  color: var(--color-faint);
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────────*/
+@media (max-width: 640px) {
+  .ev-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 880px) {
+  .ev-tablecard {
+    overflow-x: auto;
+  }
+}
