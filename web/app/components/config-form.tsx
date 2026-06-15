@@ -117,7 +117,7 @@ export function ConfigForm() {
             </FieldRow>
             <FieldRow label="…at bundle #">
               <span className="readonly-val">
-                {effectiveFaultAt !== null ? `#${effectiveFaultAt}` : "—"}
+                {effectiveFaultAt !== null ? `#${effectiveFaultAt}` : "off"}
                 <span className="pill-readonly" title="Server-fixed for the public sandbox">
                   fixed
                 </span>
@@ -127,7 +127,7 @@ export function ConfigForm() {
 
           <div className="grp">
             <div className="grp-label">Guardrails</div>
-            <FieldRow label="Tip band — min (lamports)" htmlFor="tip-min">
+            <FieldRow label="Tip band: min (lamports)" htmlFor="tip-min">
               <input
                 id="tip-min"
                 className="input input-narrow mono"
@@ -137,7 +137,7 @@ export function ConfigForm() {
                 onChange={(e) => set("tipBandMin", Number(e.target.value))}
               />
             </FieldRow>
-            <FieldRow label="Tip band — max (lamports)" htmlFor="tip-max">
+            <FieldRow label="Tip band: max (lamports)" htmlFor="tip-max">
               <input
                 id="tip-max"
                 className="input input-narrow mono"
@@ -178,7 +178,7 @@ export function ConfigForm() {
                 type="password"
                 autoComplete="off"
                 spellCheck={false}
-                placeholder={needsKey ? "Paste your API key (required for this provider)" : "Optional — Groq runs on the built-in key"}
+                placeholder={needsKey ? "Paste your API key (required for this provider)" : "Optional, Groq runs on the built-in key"}
                 value={state.apiKey}
                 onChange={(e) => set("apiKey", e.target.value)}
                 aria-label="BYO API key"
@@ -186,7 +186,7 @@ export function ConfigForm() {
               />
               <div className={keyError ? "keyhelp required-missing" : "keyhelp"}>
                 <span aria-hidden="true">🔒</span>
-                {keyError ? "This provider needs your key — paste it above." : "Used only for this session · never stored, never logged"}
+                {keyError ? "This provider needs your key. Paste it above." : "Used only for this session · never stored, never logged"}
               </div>
               {needsKey && !keyError && (
                 <div className="field-error" role="note">
@@ -209,7 +209,7 @@ export function ConfigForm() {
       <div className="safe-note">
         <span aria-hidden="true">🔒</span>
         <span>
-          <b>dryRun</b> — this session cannot spend SOL. If you add your own API key, it stays in your browser and is never stored.
+          <b>dryRun</b>: this session cannot spend SOL. If you add your own API key, it stays in your browser and is never stored.
         </span>
       </div>
     </div>

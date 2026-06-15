@@ -14,7 +14,7 @@
 
 import { Fragment, type ReactNode } from "react";
 import { STAGE_COPY, type DepthMode } from "@/lib/depth-mode";
-import { STAGE_ORDER, type LiveState, type StageId } from "@/lib/lifecycle-state";
+import { STAGE_ORDER, clampPacketDuration, type LiveState, type StageId } from "@/lib/lifecycle-state";
 import { StageCard } from "./stage-card";
 import { FlowConnector } from "./flow-connector";
 import { CommitPip } from "./commit-pip";
@@ -90,10 +90,20 @@ export function Pipeline({ state, mode }: PipelineProps) {
   const landedStatus = state.stages.landed;
   const landedDone = landedStatus === "done";
 
+  // Route the one-shot packet (Story 8.7) to the single ENTERING connector: the
+  // packet for a stage at STAGE_ORDER index k rides the connector at index k-1
+  // (the connector rendered after the previous process stage). advance.stage is
+  // only ever "send" (→ conn 1), "track" (→ conn 2), or "landed" (→ conn 3), so
+  // the index is always a real process-connector. All others get animate=false.
+  const advance = state.advance;
+  const enteringConnIndex = advance ? STAGE_ORDER.indexOf(advance.stage) - 1 : -1;
+  const packetDurationMs = advance ? clampPacketDuration(advance.latencyMs) : undefined;
+
   return (
     <div className="pipe" role="list" aria-label="Transaction lifecycle stages">
       {PROCESS_STAGES.map((stage, i) => {
         const status = state.stages[stage];
+        const animate = i === enteringConnIndex;
         return (
           <Fragment key={stage}>
             <StageCard
@@ -110,7 +120,12 @@ export function Pipeline({ state, mode }: PipelineProps) {
                 ) : undefined
               }
             />
-            <FlowConnector live={status === "live"} />
+            <FlowConnector
+              live={status === "live"}
+              animate={animate}
+              durationMs={animate ? packetDurationMs : undefined}
+              seq={animate ? advance!.seq : undefined}
+            />
           </Fragment>
         );
       })}
@@ -119,7 +134,7 @@ export function Pipeline({ state, mode }: PipelineProps) {
       <div
         className={landedDone ? "landed done" : "landed"}
         role="listitem"
-        aria-label={`Step 5 of 5: ${copy.landed.title} — ${landedDone ? "done" : "not yet — no landing event"}`}
+        aria-label={`Step 5 of 5: ${copy.landed.title}: ${landedDone ? "done" : "not yet, no landing event"}`}
       >
         <div className={landedDone ? "ring done" : "ring"} aria-hidden="true">
           {landedDone ? "✓" : ""}

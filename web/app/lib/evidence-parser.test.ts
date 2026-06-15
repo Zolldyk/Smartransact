@@ -174,7 +174,7 @@ describe("parseEvidence", () => {
       decision: {
         diagnosis: "Blockhash expired; no retries left",
         action: "abort",
-        rationale: "Abort — attemptsRemaining reached zero.",
+        rationale: "Abort: attemptsRemaining reached zero.",
       },
       thinkingTrace: "No retries left.",
       clamped: false,

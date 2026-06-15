@@ -34,7 +34,7 @@ export function StageCard({ index, total, status, title, description, dataLine, 
   const cls =
     status === "live" ? "stage focus" : status === "done" ? "stage done" : status === "fault" ? "stage fault" : "stage";
   return (
-    <div className={cls} role="listitem" aria-label={`Step ${index} of ${total}: ${title} — ${STATUS_PHRASE[status]}`}>
+    <div className={cls} role="listitem" aria-label={`Step ${index} of ${total}: ${title}: ${STATUS_PHRASE[status]}`}>
       <span className="step-n mono" aria-hidden="true">
         {String(index).padStart(2, "0")}
       </span>

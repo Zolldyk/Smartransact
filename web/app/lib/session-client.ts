@@ -88,7 +88,7 @@ export function openSession(overrides: ClientOverrides, handlers: SessionHandler
     if (!everOpened) {
       // Rejected before the WS ever opened → busy / rate-limited / server down.
       handlers.onState("error");
-      handlers.onError("Couldn't start a session — the server may be busy or rate-limiting. Try again in a moment.");
+      handlers.onError("Couldn't start a session. The server may be busy or rate-limiting. Try again in a moment.");
       return;
     }
     handlers.onState("closed");

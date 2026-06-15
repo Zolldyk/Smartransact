@@ -65,6 +65,21 @@ export interface FaultDetail {
   becameStaleAtSlot: number;
 }
 
+/**
+ * A one-shot "a beat just advanced" marker (Story 8.7). Set ONLY inside this
+ * reducer, ONLY on a real stage-advancing event (bundleSubmitted, processed
+ * commitmentTransition). `seq` is monotonic so the connector packet re-fires
+ * cleanly for a new bundle; `latencyMs` is the genuine wall-clock latency the
+ * packet's travel duration is derived from. It is NEVER refreshed by a
+ * non-advancing event — that structural rule is what keeps the motion honest
+ * (AC3): no packet can travel without a backing evidence event.
+ */
+export interface AdvanceMarker {
+  stage: StageId;
+  latencyMs: number;
+  seq: number;
+}
+
 export interface LiveState {
   stages: Record<StageId, StageStatus>;
   pips: CommitPips;
@@ -80,6 +95,10 @@ export interface LiveState {
   sessionEnded: boolean;
   endedReason?: string;
   counts: { bundlesSubmitted: number; failures: number; decisions: number };
+  /** One-shot packet-advance marker (Story 8.7); undefined until a real advance. */
+  advance?: AdvanceMarker;
+  /** Wall-clock ms of the previous event's `at`, to derive genuine latency deltas. */
+  lastEventAtMs?: number;
   /** A calm inline note for backpressure / reconnect (optional, AC8). */
   note?: string;
 }
@@ -105,8 +124,32 @@ function withStages(state: LiveState, patch: Partial<Record<StageId, StageStatus
 /**
  * Fold one evidence event into the view model. Pure: returns a new LiveState (or
  * the same reference for events with no view effect). Never mutates `state`.
+ *
+ * Story 8.7: the reducer also derives an honest, one-shot `advance` marker (the
+ * "a beat just advanced" signal) + carries `lastEventAtMs` so latency is a real
+ * wall-clock delta. `advance` is set ONLY on the two genuinely stage-advancing
+ * events (bundleSubmitted → Send, commitmentTransition → Track/Landed); every
+ * other event preserves the prior `advance` reference so no spurious re-trigger
+ * — that is what makes the packet motion structurally honest (AC3).
  */
 export function reduceEvidence(state: LiveState, event: EvidenceEvent): LiveState {
+  // Genuine wall-clock latency between consecutive events (AC2). Guard NaN /
+  // missing prior timestamp → delta 0; carry the parsed time forward always.
+  const atMs = Date.parse(event.at);
+  const validAt = Number.isFinite(atMs);
+  const delta = validAt && state.lastEventAtMs !== undefined ? Math.max(0, atMs - state.lastEventAtMs) : 0;
+  const nextAtMs = validAt ? atMs : state.lastEventAtMs;
+  // Monotonic seq: only the advancing branches below bump it.
+  const seq = (state.advance?.seq ?? 0) + 1;
+
+  const next = reduceCore(state, event, delta, seq);
+  // Always carry lastEventAtMs forward; `advance` is preserved by reduceCore
+  // (the non-advancing branches spread `state`, which already holds it).
+  return next.lastEventAtMs === nextAtMs ? next : { ...next, lastEventAtMs: nextAtMs };
+}
+
+/** The stage-transition core (pre-8.7 behavior + the two advance-marker writes). */
+function reduceCore(state: LiveState, event: EvidenceEvent, delta: number, seq: number): LiveState {
   switch (event.event) {
     case "sessionStarted":
       // Pipeline initializes: Package is the live (preparing) stage.
@@ -119,13 +162,15 @@ export function reduceEvidence(state: LiveState, event: EvidenceEvent): LiveStat
     case "bundleSubmitted": {
       // Package + Aim done, Send live. Capture the live-input values it carries.
       // A new submit re-focuses the single pipeline: reset the per-bundle Track
-      // pips (they belong to the current bundle) and the Landed stage.
+      // pips (they belong to the current bundle) and the Landed stage. The
+      // entering connector (aim→send) gets a one-shot packet at the real latency.
       return {
         ...state,
         currentBundleId: event.bundleId,
         bundleSubmittedSeen: true,
         counts: { ...state.counts, bundlesSubmitted: state.counts.bundlesSubmitted + 1 },
         pips: { processed: false, confirmed: false, finalized: false },
+        advance: { stage: "send", latencyMs: delta, seq },
         inputs: {
           ...state.inputs,
           latestSlot: event.slot,
@@ -148,6 +193,9 @@ export function reduceEvidence(state: LiveState, event: EvidenceEvent): LiveStat
         ...state,
         pips,
         landed: state.landed || finalized,
+        // Prefer the tracker-computed latency for this beat; the entering
+        // connector is send→track (or track→landed when finalized).
+        advance: { stage: finalized ? "landed" : "track", latencyMs: event.latencyFromPrevMs, seq },
         inputs: { ...state.inputs, latestSlot: event.slot },
         stages: withStages(state, {
           send: "done",
@@ -159,6 +207,7 @@ export function reduceEvidence(state: LiveState, event: EvidenceEvent): LiveStat
 
     case "failureClassified":
       // Activate the recovery loop; Send goes to the calm amber fault state.
+      // NOTE: must NOT touch `advance` (preserved via spread) — AC3/AC6.
       return {
         ...state,
         recoveryActive: true,
@@ -173,7 +222,7 @@ export function reduceEvidence(state: LiveState, event: EvidenceEvent): LiveStat
         episodeId: event.episodeId,
         bundleId: event.bundleId,
         attempt: event.attempt,
-        diagnosis: decision?.diagnosis ?? observation?.failure.classification ?? "—",
+        diagnosis: decision?.diagnosis ?? observation?.failure.classification ?? "not specified",
         action: decision?.action ?? "hold",
         classification: observation?.failure.classification,
         newTipLamports: decision?.newTipLamports,
@@ -182,17 +231,19 @@ export function reduceEvidence(state: LiveState, event: EvidenceEvent): LiveStat
         observation,
         decision,
       };
+      // NOTE: must NOT touch `advance` (preserved via spread) — AC3/AC6.
       return {
         ...state,
         recoveryActive: true,
         counts: { ...state.counts, decisions: state.counts.decisions + 1 },
         episodes: [...state.episodes, episode],
-        // currentSlot is a real, event-carried field — safe to surface.
+        // currentSlot is a real, event-carried field, safe to surface.
         inputs: observation ? { ...state.inputs, latestSlot: observation.currentSlot } : state.inputs,
       };
     }
 
     case "faultInjected":
+      // NOTE: must NOT touch `advance` (preserved via spread) — AC3/AC6.
       return {
         ...state,
         faultInjected: true,
@@ -204,7 +255,7 @@ export function reduceEvidence(state: LiveState, event: EvidenceEvent): LiveStat
       };
 
     case "eventsDropped":
-      return { ...state, note: `${event.count} event(s) dropped under load — the stream stayed connected.` };
+      return { ...state, note: `${event.count} event(s) dropped under load; the stream stayed connected.` };
 
     case "streamReconnected":
       return { ...state, note: `stream reconnected (attempt ${event.attempt}).` };
@@ -212,7 +263,7 @@ export function reduceEvidence(state: LiveState, event: EvidenceEvent): LiveStat
     case "sessionEnded":
       // Honest terminal. A dryRun session emits NO bundleSubmitted (locked 8.1
       // contract): mark Package done (it was prepared) and leave the rest pending
-      // — the page shows the "dryRun — no bundle submitted (safe mode)" terminal.
+      // (the page shows the "dryRun, no bundle submitted (safe mode)" terminal).
       return {
         ...state,
         sessionEnded: true,
@@ -223,6 +274,20 @@ export function reduceEvidence(state: LiveState, event: EvidenceEvent): LiveStat
     default:
       return state;
   }
+}
+
+/**
+ * Clamp a real latency to a watchable band (AC2): proportional to the genuine
+ * wall-clock latency, but never so fast it's imperceptible nor so slow it stalls.
+ * Pure helper so the band is unit-testable. Constants tuned for the ~42s replay
+ * cadence: a sub-300ms beat reads as instant, anything past ~1.8s feels stuck.
+ */
+export const PACKET_MIN_MS = 280;
+export const PACKET_MAX_MS = 1800;
+export function clampPacketDuration(latencyMs: number): number {
+  if (!Number.isFinite(latencyMs) || latencyMs <= PACKET_MIN_MS) return PACKET_MIN_MS;
+  if (latencyMs >= PACKET_MAX_MS) return PACKET_MAX_MS;
+  return Math.round(latencyMs);
 }
 
 /** The latest agent episode (the one the agent card + drawer render), or null. */

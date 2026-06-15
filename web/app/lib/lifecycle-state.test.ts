@@ -10,6 +10,9 @@
 import { describe, it, expect } from "vitest";
 import { parseEvidenceEvent, type EvidenceEvent } from "./evidence-events";
 import {
+  PACKET_MAX_MS,
+  PACKET_MIN_MS,
+  clampPacketDuration,
   initialLiveState,
   latestEpisode,
   reduceAll,
@@ -183,11 +186,82 @@ describe("reduceEvidence", () => {
     expect(s.recoveryActive).toBe(false);
   });
 
-  it("is pure — does not mutate the input state", () => {
+  it("is pure; does not mutate the input state", () => {
     const before: LiveState = initialLiveState;
     const snapshot = JSON.stringify(before);
     reduceEvidence(before, ev(BUNDLE_SUBMITTED));
     expect(JSON.stringify(before)).toBe(snapshot);
+  });
+});
+
+// ── Story 8.7: the one-shot packet-advance marker (AC1/AC2/AC3/AC6) ────────────
+describe("reduceEvidence — advance marker", () => {
+  it("(g) bundleSubmitted sets advance{stage:'send'}, seq increments, latencyMs ≥ 0 from the at-delta", () => {
+    const s = reduceAll([SESSION_STARTED, BUNDLE_SUBMITTED].map(ev));
+    expect(s.advance?.stage).toBe("send");
+    expect(s.advance?.seq).toBe(1);
+    // SESSION_STARTED at 03:14:57.395 → BUNDLE_SUBMITTED at 03:15:01.610 ≈ 4215ms.
+    expect(s.advance?.latencyMs).toBeGreaterThanOrEqual(0);
+    expect(s.advance?.latencyMs).toBe(
+      Date.parse(BUNDLE_SUBMITTED.at) - Date.parse(SESSION_STARTED.at),
+    );
+  });
+
+  it("(h) commitmentTransition processed → advance{stage:'track', latencyMs:event.latencyFromPrevMs}; finalized → 'landed'", () => {
+    let s = reduceAll([SESSION_STARTED, BUNDLE_SUBMITTED].map(ev));
+    const seqAfterSubmit = s.advance!.seq;
+
+    s = reduceEvidence(s, commit("processed", 426332925));
+    expect(s.advance?.stage).toBe("track");
+    expect(s.advance?.latencyMs).toBe(410); // commit() fixture latencyFromPrevMs
+    expect(s.advance?.seq).toBe(seqAfterSubmit + 1);
+
+    s = reduceEvidence(s, commit("finalized", 426332931));
+    expect(s.advance?.stage).toBe("landed");
+    expect(s.advance?.latencyMs).toBe(410);
+    expect(s.advance?.seq).toBe(seqAfterSubmit + 2);
+  });
+
+  it("(i) failureClassified / agentDecision / faultInjected do NOT advance the packet (seq + ref preserved) — locks AC3/AC6", () => {
+    const submitted = reduceAll([SESSION_STARTED, BUNDLE_SUBMITTED].map(ev));
+    const marker = submitted.advance;
+    expect(marker?.stage).toBe("send");
+    expect(marker?.seq).toBe(1);
+
+    // Each non-advancing event must leave the SAME advance reference untouched.
+    const afterFail = reduceEvidence(submitted, ev(FAILURE_CLASSIFIED));
+    expect(afterFail.advance).toBe(marker); // identity preserved, no re-trigger
+
+    const afterDecision = reduceEvidence(afterFail, ev(AGENT_DECISION));
+    expect(afterDecision.advance).toBe(marker);
+
+    const afterFault = reduceEvidence(afterDecision, ev(FAULT_INJECTED));
+    expect(afterFault.advance).toBe(marker);
+    expect(afterFault.advance?.seq).toBe(1);
+  });
+
+  it("(j) the committed run (no commitmentTransition) never produces a track/landed advance", () => {
+    const s = reduceAll(
+      [SESSION_STARTED, BUNDLE_SUBMITTED, FAILURE_CLASSIFIED, AGENT_DECISION, FAULT_INJECTED, SESSION_ENDED].map(ev),
+    );
+    // The only advance ever set is the Send beat from bundleSubmitted (AC6).
+    expect(s.advance?.stage).toBe("send");
+    expect(s.advance?.seq).toBe(1);
+  });
+});
+
+describe("clampPacketDuration (AC2 watchable band)", () => {
+  it("clamps below the floor up to PACKET_MIN_MS", () => {
+    expect(clampPacketDuration(100)).toBe(PACKET_MIN_MS);
+    expect(clampPacketDuration(0)).toBe(PACKET_MIN_MS);
+    expect(clampPacketDuration(Number.NaN)).toBe(PACKET_MIN_MS);
+  });
+  it("passes a value inside the band through (rounded)", () => {
+    expect(clampPacketDuration(900)).toBe(900);
+    expect(clampPacketDuration(900.6)).toBe(901);
+  });
+  it("clamps above the ceiling down to PACKET_MAX_MS", () => {
+    expect(clampPacketDuration(5000)).toBe(PACKET_MAX_MS);
   });
 });
 

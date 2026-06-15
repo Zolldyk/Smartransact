@@ -118,9 +118,9 @@ export const AGENT_VOICE: Record<DepthMode, AgentVoiceCopy> = {
 export const GLOSSARY: Record<string, string> = {
   blockhash:
     "A recent block fingerprint a transaction must reference. It expires after ~150 slots (about a minute), after which the network rejects it.",
-  slot: "Solana’s ~400ms time unit — one leader’s turn to produce a block.",
+  slot: "Solana’s ~400ms time unit, one leader’s turn to produce a block.",
   tip: "An extra payment to Jito to prioritize your bundle for the next block.",
   "leader window": "The short span of slots when a specific validator (a Jito leader) is producing blocks.",
   bundle: "A group of transactions submitted together to Jito, included all-or-nothing.",
-  finalized: "The strongest confirmation — the transaction is permanent and irreversible on-chain.",
+  finalized: "The strongest confirmation: the transaction is permanent and irreversible on-chain.",
 };

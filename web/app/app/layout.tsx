@@ -3,8 +3,8 @@ import { Nav } from "@/components/nav";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Smartransact — Smart Transaction Stack",
-  description: "Watch a real Solana mainnet transaction lifecycle, with an autonomous retry agent. Run your own in dryRun — free, safe.",
+  title: "Smartransact: Smart Transaction Stack",
+  description: "Watch a real Solana mainnet transaction lifecycle, with an autonomous retry agent. Run your own in dryRun: free and safe.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -35,11 +35,11 @@ function statusDotClass(status: BundleRow["status"]): string {
 }
 
 function formatTip(lamports: number | null): string {
-  return lamports === null ? "—" : lamports.toLocaleString("en-US");
+  return lamports === null ? "none" : lamports.toLocaleString("en-US");
 }
 
 function formatMs(ms: number | null): string {
-  return ms === null ? "—" : ms.toLocaleString("en-US");
+  return ms === null ? "none" : ms.toLocaleString("en-US");
 }
 
 function DetailPanel({ row }: { row: BundleRow }) {
@@ -149,7 +149,7 @@ function EvidenceRow({
     >
       {row.submitSlot.toLocaleString("en-US")} ↗
     </a>
-  ) : "—";
+  ) : "none";
 
   const finalSlotCell = row.finalSignature ? (
     <a
@@ -173,7 +173,7 @@ function EvidenceRow({
     >
       {row.finalSlot.toLocaleString("en-US")} ↗
     </a>
-  ) : "—";
+  ) : "none";
 
   return (
     <>
@@ -196,8 +196,8 @@ function EvidenceRow({
         <td>{finalSlotCell}</td>
         <td style={{ fontFamily: "var(--font-mono)" }}>{formatTip(row.tipLamports)}</td>
         <td style={{ fontFamily: "var(--font-mono)" }}>{formatMs(row.procToConfMs)}</td>
-        <td>{row.failureClassification ?? "—"}</td>
-        <td>{row.agentAction ?? "—"}</td>
+        <td>{row.failureClassification ?? "none"}</td>
+        <td>{row.agentAction ?? "none"}</td>
         <td style={{ color: "var(--color-faint)", fontSize: 12 }} aria-hidden="true">
           {isExpanded ? "▴" : "▾"}
         </td>
@@ -254,7 +254,7 @@ export default function EvidencePage() {
         <div className="ev-head">
           <div className="eyebrow">The real mainnet run · committed evidence</div>
           <h1 style={{ margin: "13px 0 0", fontSize: 30, fontWeight: 660, letterSpacing: "-0.5px", lineHeight: 1.14 }}>
-            Every bundle, every slot — verifiable
+            Every bundle, every slot, verifiable
           </h1>
           <div className="flow-prov" style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <RealMainnetRunBadge />
@@ -305,7 +305,7 @@ export default function EvidencePage() {
           ) : empty ? (
             <div style={{ padding: "48px 18px", textAlign: "center" }}>
               <p style={{ color: "var(--color-muted)", fontSize: 14 }}>
-                No committed run yet — start one from the{" "}
+                No committed run yet. Start one from the{" "}
                 <Link href="/run" style={{ color: "var(--color-accent)" }}>
                   Run page
                 </Link>
@@ -314,7 +314,7 @@ export default function EvidencePage() {
           ) : (
             <div style={{ overflowX: "auto" }}>
               <table className="ev-table">
-                <caption className="sr-only">Evidence log — committed mainnet run</caption>
+                <caption className="sr-only">Evidence log: committed mainnet run</caption>
                 <thead>
                   <tr>
                     {headers.map((h, i) => (

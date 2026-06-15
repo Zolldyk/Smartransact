@@ -846,21 +846,30 @@ body {
 .conn.live path {
   stroke: var(--color-accent-bright);
 }
+/* One-shot packet (Story 8.7): a single left→right traverse per real advance.
+   Duration is supplied inline (animationDuration = clamped real latency); the
+   700ms here is only a fallback. Ends invisible (fill-mode forwards + opacity 0)
+   so nothing lingers after the beat. The element is keyed by advance.seq so a
+   re-fire restarts cleanly. */
 .conn .pkt {
   fill: var(--color-accent);
-  animation: pkt-travel 1.5s ease-in-out infinite;
+  opacity: 0;
+  animation: pkt-travel 700ms ease-in-out 1 forwards;
 }
 @keyframes pkt-travel {
   0% {
-    transform: translateX(-14px);
-    opacity: 0.2;
+    transform: translateX(-16px);
+    opacity: 0;
   }
-  50% {
+  20% {
+    opacity: 1;
+  }
+  80% {
     opacity: 1;
   }
   100% {
     transform: translateX(20px);
-    opacity: 0.2;
+    opacity: 0;
   }
 }
 
@@ -1374,10 +1383,12 @@ body {
   .stage.focus {
     animation: none;
   }
+  /* Snap-to-end-state (AC4): no traverse, and the one-shot packet's end-state is
+     invisible, so hold opacity 0 rather than freezing a stray dot mid-connector. */
   .conn .pkt {
     animation: none;
     transform: none;
-    opacity: 1;
+    opacity: 0;
   }
   .pips i {
     transition: none;

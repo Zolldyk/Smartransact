@@ -7,7 +7,7 @@ export function DryRunSafeBadge() {
     <span className="badge-safe" role="status">
       <span aria-hidden="true">🔒</span>
       <span>
-        <b>dryRun</b> — safe mode, no SOL spent
+        <b>dryRun</b>: safe mode, no SOL spent
       </span>
     </span>
   );
@@ -25,7 +25,7 @@ export function RealMainnetRunBadge() {
     <span className="badge-real" role="status">
       <span aria-hidden="true">◆</span>
       <span>
-        <b>REAL MAINNET RUN</b> — replayed from the evidence log
+        <b>REAL MAINNET RUN</b>: replayed from the evidence log
       </span>
     </span>
   );

@@ -46,30 +46,30 @@ function caption(state: LiveState, mode: DepthMode, provenance: "live" | "replay
   if (state.sessionEnded && !state.bundleSubmittedSeen) {
     return mode === "technical" ? (
       <>
-        <span className="mono">dryRun</span> session — <span className="mono">sessionStarted → sessionEnded</span>, no{" "}
+        <span className="mono">dryRun</span> session: <span className="mono">sessionStarted → sessionEnded</span>, no{" "}
         <span className="mono">bundleSubmitted</span> (safe mode, no SOL).
       </>
     ) : (
-      "Safe mode — this run prepared a transaction but submitted nothing (no SOL spent)."
+      "Safe mode: this run prepared a transaction but submitted nothing (no SOL spent)."
     );
   }
   if (state.landed) {
     return mode === "technical"
-      ? "Finalized — a real commitmentTransition lit the Landed stage."
-      : "It landed — confirmed and final on-chain.";
+      ? "Finalized: a real commitmentTransition lit the Landed stage."
+      : "It landed: confirmed and final on-chain.";
   }
   if (state.recoveryActive || provenance === "replay") {
     return mode === "technical" ? (
       <>
-        Submitted &amp; retried under live congestion — the agent ran{" "}
+        Submitted &amp; retried under live congestion: the agent ran{" "}
         <span className="mono">classifyFailure → AgentDecision → executeDecision</span> each time. No{" "}
         <span className="mono">commitmentTransition</span> yet: a confirmed landing needs Jito searcher access (see Evidence). Nothing here is staged.
       </>
     ) : (
       <>
-        The transaction was sent and retried under live congestion — each time one attempt failed (an expired{" "}
+        The transaction was sent and retried under live congestion: each time one attempt failed (an expired{" "}
         <Gloss term="blockhash">freshness stamp</Gloss>), the agent diagnosed it and re-decided. A confirmed landing needs Jito searcher
-        access — so the Landed step stays honestly unlit. <b>Nothing here is staged.</b>
+        access, so the Landed step stays honestly unlit. <b>Nothing here is staged.</b>
       </>
     );
   }
@@ -133,7 +133,7 @@ export default function LivePage() {
           <p className="flow-sub">
             {mode === "technical"
               ? "Real terms, on-chain data, and the agent’s decision path."
-              : "Follow it through every stage — and watch the agent step in when one fails."}
+              : "Follow it through every stage, and watch the agent step in when one fails."}
           </p>
         </div>
         <div className="flow-toggle">

@@ -86,7 +86,7 @@ export function providerNeedsKey(provider: Provider): boolean {
  */
 export class MissingApiKeyError extends Error {
   constructor() {
-    super("Add your API key — Gemini and Claude run on your own key for this session.");
+    super("Add your API key. Gemini and Claude run on your own key for this session.");
     this.name = "MissingApiKeyError";
   }
 }

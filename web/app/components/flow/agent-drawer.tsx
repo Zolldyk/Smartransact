@@ -140,7 +140,7 @@ export function AgentDrawer({ episode, mode, onClose }: AgentDrawerProps) {
             ) : null}
           </div>
           {dec?.rationale ? (
-            <div className="why">Chosen from live conditions, not a script — the same fault on a quieter market can produce a different call.</div>
+            <div className="why">Chosen from live conditions, not a script. The same fault on a quieter market can produce a different call.</div>
           ) : null}
         </div>
 

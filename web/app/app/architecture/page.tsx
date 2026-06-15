@@ -42,7 +42,7 @@ const LIFECYCLE_STATES_MMD = `stateDiagram-v2
   failed --> [*] : agent abort`;
 
 const AGENT_EPISODE_LOOP_MMD = `graph TD
-  FC["Failure Classifier\\nfailureClassified event"]-->OB["Observation Builder\\n(public data only — NFR4)"]
+  FC["Failure Classifier\\nfailureClassified event"]-->OB["Observation Builder\\n(public data only, NFR4)"]
   OB-->LP["LlmProvider\\nGemini / Claude / Groq"]
   LP-->|"diagnosis + action\\n+ rationale + thinking trace"| GR["Guardrails\\n(clamp tip, check attempts)"]
   GR-->DE["Decision Executor"]
@@ -63,7 +63,7 @@ export default function ArchitecturePage() {
       <p className="doc-lead">
         A single-process TypeScript backend that subscribes to a live Solana event stream,
         builds Jito bundles, tracks each bundle through the commitment lifecycle, and routes
-        failures to an LLM-powered agent that decides how to recover — all evidenced in an
+        failures to an LLM-powered agent that decides how to recover, all evidenced in an
         append-only JSONL log.
       </p>
 
@@ -74,7 +74,7 @@ export default function ArchitecturePage() {
           event stream, builds Jito bundles, tracks each bundle through the commitment lifecycle,
           and routes failures to an LLM-powered agent that decides how to recover. The system is
           designed around a config-driven transport seam: SolInfra Ace mainnet gRPC is the primary
-          stream; testnet WebSocket is the verified fallback — switching requires only a config
+          stream; testnet WebSocket is the verified fallback, switching requires only a config
           profile change.
         </p>
         <MermaidDiagram id="diag-system-overview" definition={SYSTEM_OVERVIEW_MMD} title="System architecture" />
@@ -86,15 +86,15 @@ export default function ArchitecturePage() {
           Each module has a single responsibility and a defined interface seam:
         </p>
         <ul className="doc-body" style={{ paddingLeft: "1.4em", marginBottom: 0 }}>
-          <li><strong>LifecycleStream</strong> (<code className="doc-code">src/core/stream/lifecycle-stream.ts</code>) — bounded async-iterable event bus; drops oldest events under backpressure (FR6); provides exactly one consumer seam.</li>
-          <li><strong>YellowstoneGrpcAdapter</strong> (<code className="doc-code">src/core/stream/grpc-adapter.ts</code>) — connects to SolInfra Ace hosted Yellowstone gRPC, normalizes slot + shred events into <code className="doc-code">LifecycleEvent</code> union.</li>
-          <li><strong>RpcWebSocketAdapter</strong> (<code className="doc-code">src/core/stream/ws-adapter.ts</code>) — testnet WebSocket fallback; same event union; config-selected, zero core changes to switch.</li>
-          <li><strong>Orchestrator</strong> (<code className="doc-code">src/core/orchestrator.ts</code>) — the single stream consumer; drives all subsystems in sequence; owns all mutable session state.</li>
-          <li><strong>JitoClient</strong> (<code className="doc-code">src/core/submit/jito-client.ts</code>) — thin hand-rolled <code className="doc-code">fetch</code>-based Block Engine client (4 JSON-RPC methods + 1 REST); handles base64 encoding, rate limiting, and 429/503 backoff.</li>
-          <li><strong>LifecycleTracker</strong> (<code className="doc-code">src/core/track/lifecycle-tracker.ts</code>) — per-bundle state machine (<code className="doc-code">submitted → processed → confirmed → finalized</code> + failure exits); transitions driven exclusively by stream events with latency telemetry.</li>
-          <li><strong>FailureClassifier</strong> (<code className="doc-code">src/core/track/failure-classifier.ts</code>) — pure function: typed <code className="doc-code">Result&lt;T, ClassifiedFailure&gt;</code> in, one of four classification labels out (<code className="doc-code">expired_blockhash</code>, <code className="doc-code">fee_too_low</code>, <code className="doc-code">compute_exceeded</code>, <code className="doc-code">bundle_failure</code>); never throws.</li>
-          <li><strong>AgentLoop</strong> (<code className="doc-code">src/agent/agent-loop.ts</code>) — episodic retry coordinator; calls <code className="doc-code">ObservationBuilder</code> → <code className="doc-code">LlmProvider</code> → <code className="doc-code">Guardrails</code> → <code className="doc-code">DecisionExecutor</code> per failure; respects <code className="doc-code">maxRetries</code> hard stop.</li>
-          <li><strong>EvidenceLogger</strong> (<code className="doc-code">src/core/evidence/evidence-log.ts</code>) — append-only JSONL writer; fires <code className="doc-code">onAppend</code> callback (web streaming seam) after schema validation + file write.</li>
+          <li><strong>LifecycleStream</strong> (<code className="doc-code">src/core/stream/lifecycle-stream.ts</code>):bounded async-iterable event bus; drops oldest events under backpressure (FR6); provides exactly one consumer seam.</li>
+          <li><strong>YellowstoneGrpcAdapter</strong> (<code className="doc-code">src/core/stream/grpc-adapter.ts</code>):connects to SolInfra Ace hosted Yellowstone gRPC, normalizes slot + shred events into <code className="doc-code">LifecycleEvent</code> union.</li>
+          <li><strong>RpcWebSocketAdapter</strong> (<code className="doc-code">src/core/stream/ws-adapter.ts</code>):testnet WebSocket fallback; same event union; config-selected, zero core changes to switch.</li>
+          <li><strong>Orchestrator</strong> (<code className="doc-code">src/core/orchestrator.ts</code>):the single stream consumer; drives all subsystems in sequence; owns all mutable session state.</li>
+          <li><strong>JitoClient</strong> (<code className="doc-code">src/core/submit/jito-client.ts</code>):thin hand-rolled <code className="doc-code">fetch</code>-based Block Engine client (4 JSON-RPC methods + 1 REST); handles base64 encoding, rate limiting, and 429/503 backoff.</li>
+          <li><strong>LifecycleTracker</strong> (<code className="doc-code">src/core/track/lifecycle-tracker.ts</code>):per-bundle state machine (<code className="doc-code">submitted → processed → confirmed → finalized</code> + failure exits); transitions driven exclusively by stream events with latency telemetry.</li>
+          <li><strong>FailureClassifier</strong> (<code className="doc-code">src/core/track/failure-classifier.ts</code>):pure function: typed <code className="doc-code">Result&lt;T, ClassifiedFailure&gt;</code> in, one of four classification labels out (<code className="doc-code">expired_blockhash</code>, <code className="doc-code">fee_too_low</code>, <code className="doc-code">compute_exceeded</code>, <code className="doc-code">bundle_failure</code>); never throws.</li>
+          <li><strong>AgentLoop</strong> (<code className="doc-code">src/agent/agent-loop.ts</code>):episodic retry coordinator; calls <code className="doc-code">ObservationBuilder</code> → <code className="doc-code">LlmProvider</code> → <code className="doc-code">Guardrails</code> → <code className="doc-code">DecisionExecutor</code> per failure; respects <code className="doc-code">maxRetries</code> hard stop.</li>
+          <li><strong>EvidenceLogger</strong> (<code className="doc-code">src/core/evidence/evidence-log.ts</code>):append-only JSONL writer; fires <code className="doc-code">onAppend</code> callback (web streaming seam) after schema validation + file write.</li>
         </ul>
       </section>
 
@@ -107,7 +107,7 @@ export default function ArchitecturePage() {
           submits to the Frankfurt Jito Block Engine. The <code className="doc-code">LifecycleTracker</code> records
           each commitment stage transition as the stream confirms progress. When a failure is classified, the{" "}
           <code className="doc-code">ObservationBuilder</code> packages the context (failure type, tip market data,
-          prior attempts, guardrail state — no private keys, no wallet addresses, NFR4) and the{" "}
+          prior attempts, guardrail state, no private keys, no wallet addresses, NFR4) and the{" "}
           <code className="doc-code">LlmProvider</code> returns a structured decision. The{" "}
           <code className="doc-code">DecisionExecutor</code> validates the decision against guardrails and acts.
           Every event at every stage is appended to the evidence log.
@@ -122,7 +122,7 @@ export default function ArchitecturePage() {
           <code className="doc-code">submitted → processed → confirmed → finalized</code>. Failures exit
           the machine early; the agent decision executor can re-enter at <code className="doc-code">submitted</code>{" "}
           (refresh or adjust_tip actions trigger a new bundle with a fresh blockhash). The state machine is
-          declared in one transition map — illegal transitions throw (they are programmer errors, not operational
+          declared in one transition map; illegal transitions throw (they are programmer errors, not operational
           failures).
         </p>
         <MermaidDiagram id="diag-lifecycle-states" definition={LIFECYCLE_STATES_MMD} title="Per-bundle lifecycle state machine" />
@@ -140,7 +140,7 @@ export default function ArchitecturePage() {
           decision executor acts: <code className="doc-code">refresh</code> fetches a fresh blockhash and
           resubmits; <code className="doc-code">adjust_tip</code> rebuilds with a new tip;{" "}
           <code className="doc-code">hold</code> waits; <code className="doc-code">abort</code> ends the episode.
-          The agent never holds a connection, keypair, or transaction — it is a pure decision module (NFR3).
+          The agent never holds a connection, keypair, or transaction; it is a pure decision module (NFR3).
         </p>
         <MermaidDiagram id="diag-agent-episode" definition={AGENT_EPISODE_LOOP_MMD} title="Agent episode loop" />
       </section>
@@ -148,10 +148,10 @@ export default function ArchitecturePage() {
       <section className="doc-section">
         <h2 className="doc-h2">6. Infrastructure Decisions</h2>
         <p className="doc-body">
-          <strong>Why mainnet?</strong> Jito&apos;s Block Engine has no devnet endpoint — it exists on mainnet
+          <strong>Why mainnet?</strong> Jito&apos;s Block Engine has no devnet endpoint; it exists on mainnet
           and testnet only (verified via API, documented in{" "}
           <code className="doc-code">docs/jito-documentation.md</code>). The bounty §6 permits &ldquo;devnet or
-          mainnet&rdquo;; the Jito bundle requirement — the core graded deliverable — forces mainnet. This is
+          mainnet&rdquo;; the Jito bundle requirement (the core graded deliverable) forces mainnet. This is
           not a workaround; §6 is satisfied directly. SolInfra Ace provides production gRPC (hosted Yellowstone,
           Frankfurt co-located with the Jito Block Engine), eliminating the need for a local validator.{" "}
           <code className="doc-code">dryRun: true</code> makes development free: the orchestrator builds, signs,
@@ -164,11 +164,11 @@ export default function ArchitecturePage() {
         <h2 className="doc-h2">7. Failure-Handling Strategy</h2>
         <p className="doc-body">
           Failures are first-class events, not exceptions. Every external call returns a typed{" "}
-          <code className="doc-code">Result&lt;T, ClassifiedFailure&gt;</code> — failures flow to the classifier,
+          <code className="doc-code">Result&lt;T, ClassifiedFailure&gt;</code>: failures flow to the classifier,
           then to the agent, then to the evidence log. The classifier is a pure function (unit-tested,
           deterministic); classification is never delegated to the LLM. The agent diagnoses and decides; it
           never classifies. Guardrails clamp the agent&apos;s output to configured bounds (tip band, retry
-          limit) and log any overrides — the agent has authority within policy, not above it. The four failure
+          limit) and log any overrides; the agent has authority within policy, not above it. The four failure
           classes (<code className="doc-code">expired_blockhash</code>,{" "}
           <code className="doc-code">fee_too_low</code>,{" "}
           <code className="doc-code">compute_exceeded</code>,{" "}
@@ -184,15 +184,15 @@ export default function ArchitecturePage() {
         <p className="doc-body">
           Two adapters, one event union, zero core changes to switch. The{" "}
           <code className="doc-code">LifecycleStream</code> consumer (the Orchestrator) is transport-agnostic
-          by construction — it iterates <code className="doc-code">LifecycleEvent</code> values regardless of
+          by construction; it iterates <code className="doc-code">LifecycleEvent</code> values regardless of
           source. Switching from the mainnet gRPC adapter to the testnet WS adapter is a single config key
           change (<code className="doc-code">profile: &quot;mainnet-grpc&quot;</code> →{" "}
           <code className="doc-code">&quot;mainnet-ws&quot;</code>). This was operationally proven during
           development: the mainnet-ws profile ran the full evidence session when SolInfra&apos;s gRPC streaming
           hit a server-side concurrent-stream limit. <code className="doc-code">dryRun</code> is the third leg
           of cost control: it forces a zero-spend path through every code branch except the final{" "}
-          <code className="doc-code">sendBundle</code> call, so the entire stack — stream, leader detection,
-          bundle building, agent loop, evidence logging — was exercised on production infrastructure before a
+          <code className="doc-code">sendBundle</code> call, so the entire stack (stream, leader detection,
+          bundle building, agent loop, evidence logging) was exercised on production infrastructure before a
           single lamport was spent.
         </p>
       </section>
