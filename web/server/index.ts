@@ -36,6 +36,8 @@ const MAX_CONCURRENT_SESSIONS = 3; // bounds long-lived streams
 const HTTP_RATE_MAX = 30; // requests / window / IP (HTTP surface)
 const HTTP_RATE_WINDOW = "1 minute";
 const WS_PER_IP_COOLDOWN_MS = 2_000; // min gap between WS connects per IP
+const WS_FIRST_FRAME_TIMEOUT_MS = 10_000; // close a socket that never sends its options frame
+const WS_MAX_PAYLOAD_BYTES = 64 * 1024; // the options frame is small JSON; bound boundary input
 
 // Load server-side env (SolInfra RPC key, default LLM key) — same mechanism as
 // the CLI (src/cli/run.ts). These secrets stay server-side and never reach the
@@ -77,7 +79,7 @@ function clientIp(req: IncomingMessage): string {
 }
 
 // ─── WebSocket session handling ─────────────────────────────────────────────
-const wss = new WebSocketServer({ noServer: true });
+const wss = new WebSocketServer({ noServer: true, maxPayload: WS_MAX_PAYLOAD_BYTES });
 
 wss.on("connection", (ws: WebSocket) => {
   activeSessions++;
@@ -89,26 +91,36 @@ wss.on("connection", (ws: WebSocket) => {
     }
   };
 
+  let started = false;
   const ac = new AbortController();
   const timeBox = setTimeout(() => {
     if (!ac.signal.aborted) ac.abort();
     if (ws.readyState === ws.OPEN) ws.close();
   }, SESSION_TIMEOUT_MS);
 
-  // Client disconnect → tear the session down (AC3 external-cancel path).
-  ws.on("close", () => {
+  // A client that completes the upgrade but never sends its options frame would
+  // otherwise hold a concurrency slot for the full time-box. Close it early.
+  const firstFrameTimer = setTimeout(() => {
+    if (!started && ws.readyState === ws.OPEN) ws.close();
+  }, WS_FIRST_FRAME_TIMEOUT_MS);
+
+  // Both teardown paths must clear BOTH timers and release the slot. release()
+  // is idempotent, so the close-after-error sequence is safe.
+  const teardown = (): void => {
     clearTimeout(timeBox);
+    clearTimeout(firstFrameTimer);
     if (!ac.signal.aborted) ac.abort();
     release();
-  });
-  ws.on("error", () => {
-    if (!ac.signal.aborted) ac.abort();
-  });
+  };
 
-  let started = false;
+  // Client disconnect / socket error → tear the session down (AC3 external-cancel path).
+  ws.on("close", teardown);
+  ws.on("error", teardown);
+
   ws.once("message", async (raw: Buffer) => {
     if (started) return;
     started = true;
+    clearTimeout(firstFrameTimer);
 
     // zod-at-boundary: validate the client's session options. Never log `raw`
     // or the parsed object — it may carry a BYO LLM apiKey.

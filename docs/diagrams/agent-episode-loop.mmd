@@ -1,5 +1,5 @@
 graph TD
-  FC["Failure Classifier\nfailureClassified event"]-->OB["Observation Builder\n(public data only — NFR4)"]
+  FC["Failure Classifier\nfailureClassified event"]-->OB["Observation Builder\n(public data only, NFR4)"]
   OB-->LP["LlmProvider\nGemini / Claude / Groq"]
   LP-->|"diagnosis + action\n+ rationale + thinking trace"| GR["Guardrails\n(clamp tip, check attempts)"]
   GR-->DE["Decision Executor"]

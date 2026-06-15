@@ -27,12 +27,13 @@ export default function ReadmePage() {
         </p>
         <p className="doc-body">
           In our committed evidence session (<code className="doc-code">mqd7o73n-6e0959</code>, 2026-06-14), no{" "}
-          <code className="doc-code">commitmentTransition</code> events appear in the log; all 54 submitted
-          bundles failed at the <code className="doc-code">bundle_failure</code> stage (timed out at the Jito
-          Block Engine before validators ever picked them up). This is itself network health evidence: the public
-          Block Engine returned{" "}
+          <code className="doc-code">commitmentTransition</code> events appear in the log: none of the 54 submitted
+          bundles advanced to the processed state. Of those, 24 reached an explicit{" "}
+          <code className="doc-code">bundle_failure</code> classification (timed out at the Jito Block Engine
+          before validators ever picked them up); the remainder produced no commitment at all. This is itself
+          network health evidence: the public Block Engine returned{" "}
           <code className="doc-code">&quot;Network congested. Endpoint is globally rate limited&quot;</code>{" "}
-          during our run, and 0/54 bundles advanced to the processed state. The absence of a{" "}
+          during our run, and 0/54 bundles advanced to processed. The absence of a{" "}
           <code className="doc-code">processed_at</code> timestamp for any bundle is the log&apos;s honest record
           of that congestion. Nothing is staged.
         </p>
@@ -57,9 +58,9 @@ export default function ReadmePage() {
           <code className="doc-code">staleBlockhash</code> was fetched at slot{" "}
           <code className="doc-code">426334667</code> and became stale at slot{" "}
           <code className="doc-code">426334818</code>, exactly <strong>151 slots later</strong>, one slot past{" "}
-          <code className="doc-code">MAX_PROCESSING_AGE</code>. The agent detected the resulting{" "}
-          <code className="doc-code">expired_blockhash</code> failure (blockhashAgeSlots: 150+ at the time of
-          submission) and issued a <code className="doc-code">refresh</code> action to fetch a{" "}
+          <code className="doc-code">MAX_PROCESSING_AGE</code>. The agent then observed a{" "}
+          <code className="doc-code">blockhashAgeSlots</code> of 154 (past the 150-slot validity window) and
+          issued a <code className="doc-code">refresh</code> action to fetch a{" "}
           <code className="doc-code">confirmed</code>-commitment blockhash, maximizing the remaining validity
           window for the next attempt.
         </p>
