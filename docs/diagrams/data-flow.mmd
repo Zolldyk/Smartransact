@@ -1,0 +1,14 @@
+graph LR
+  A["Adapter"] -->|"LifecycleEvent"| Q["Bounded Queue\n(backpressure)"]
+  Q -->|"slot / leader events"| ORC["Orchestrator"]
+  ORC -->|"leader window"| LW["Leader Window"]
+  LW -->|"target slot"| BB["Bundle Builder"]
+  BB -->|"signed tx"| JC["JitoClient\nsendBundle"]
+  JC -->|"bundle ID"| LT["Lifecycle Tracker"]
+  LT -->|"timeout / error"| FC["Failure Classifier"]
+  FC -->|"classified failure"| OB["Observation Builder"]
+  OB -->|"structured prompt"| LLP["LlmProvider"]
+  LLP -->|"AgentDecision"| GR["Guardrails\n(clamp + log)"]
+  GR -->|"validated decision"| DE["Decision Executor"]
+  DE -->|"refresh / adjust_tip"| JC
+  ORC -->|"every stage event"| EL["EvidenceLogger"]

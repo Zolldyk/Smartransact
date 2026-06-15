@@ -1557,3 +1557,145 @@ body {
     overflow-x: auto;
   }
 }
+
+/* ── Story 8.5 Documentation Pages ─────────────────────────────────────────*/
+.doc-wrap {
+  max-width: 720px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 44px 80px;
+}
+
+.doc-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-faint);
+  margin-bottom: 10px;
+}
+
+.doc-h1 {
+  font-size: 30px;
+  font-weight: 660;
+  letter-spacing: -0.5px;
+  line-height: 1.14;
+  color: var(--color-text);
+  margin: 0 0 16px;
+}
+
+.doc-lead {
+  font-size: 15px;
+  color: var(--color-muted);
+  line-height: 1.6;
+  margin-bottom: 48px;
+}
+
+.doc-section {
+  margin-bottom: 52px;
+}
+
+.doc-h2 {
+  font-size: 16px;
+  font-weight: 620;
+  color: var(--color-text);
+  margin: 0 0 12px;
+  padding-top: 32px;
+  border-top: 1px solid var(--color-line);
+}
+
+.doc-h3 {
+  font-size: 14.5px;
+  font-weight: 620;
+  color: var(--color-text);
+  margin: 20px 0 8px;
+}
+
+.doc-body {
+  font-size: 14.5px;
+  color: var(--color-muted);
+  line-height: 1.65;
+  margin-bottom: 16px;
+}
+
+.doc-body strong {
+  color: var(--color-text);
+}
+
+.doc-code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  background: var(--color-raised);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--color-text);
+}
+
+.doc-pre {
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 16px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--color-muted);
+  overflow-x: auto;
+  margin-bottom: 20px;
+}
+
+.doc-steps {
+  padding-left: 1.4em;
+  color: var(--color-muted);
+  font-size: 14.5px;
+  line-height: 1.75;
+}
+
+.doc-steps li + li {
+  margin-top: 10px;
+}
+
+.doc-diagram {
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 24px;
+  margin: 20px 0 28px;
+  overflow-x: auto;
+}
+
+.doc-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.doc-diagram-loading {
+  color: var(--color-faint);
+  font-size: 13px;
+  text-align: center;
+  padding: 32px;
+}
+
+.doc-diagram-pre {
+  /* fallback */
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 16px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--color-muted);
+  overflow-x: auto;
+  margin-bottom: 20px;
+}
+
+.doc-footer {
+  margin-top: 60px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-line);
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+.doc-footer a {
+  color: var(--color-accent);
+}

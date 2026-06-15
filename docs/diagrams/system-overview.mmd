@@ -1,0 +1,13 @@
+graph TD
+  GrpcIn["SolInfra Ace mainnet gRPC"]-->YGA["YellowstoneGrpcAdapter\n(primary)"]
+  WsIn["Testnet WebSocket\n(fallback)"]-->RWA["RpcWebSocketAdapter"]
+  YGA-->LS["LifecycleStream\nbounded queue"]
+  RWA-->LS
+  LS-->ORC["Orchestrator\n(single consumer)"]
+  ORC-->LW["Leader Window\nDetection"]
+  ORC-->BB["Bundle Builder\n+ JitoClient"]
+  ORC-->LT["Lifecycle Tracker"]
+  ORC-->FC["Failure Classifier"]
+  ORC-->AL["Agent Loop"]
+  ORC-->EL["EvidenceLogger\nappend-only JSONL"]
+  AL-->LLP["LlmProvider\nGemini / Claude / Groq"]

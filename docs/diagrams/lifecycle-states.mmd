@@ -1,0 +1,10 @@
+stateDiagram-v2
+  [*] --> submitted : bundleSubmitted
+  submitted --> processed : validator picks up tx
+  processed --> confirmed : 67% stake votes
+  confirmed --> finalized : supermajority ~32 slots later
+  finalized --> [*]
+  submitted --> failed : bundle_failure\n(timeout / dropped)
+  processed --> failed : fee_too_low\ncompute_exceeded\nexpired_blockhash
+  failed --> submitted : agent refresh / adjust_tip (retry)
+  failed --> [*] : agent abort
