@@ -943,10 +943,14 @@ body {
 }
 
 /* ── Agent recovery band ────────────────────────────────────────────────────*/
-.recovery {
-  margin-top: 14px;
+.recovery-outer {
   position: relative;
+  margin-top: 14px;
+  padding-top: 24px;
   padding-bottom: 24px;
+}
+.recovery {
+  position: relative;
 }
 .recovery svg.loop {
   position: absolute;
@@ -969,18 +973,17 @@ body {
 }
 .faillabel {
   position: absolute;
-  z-index: 2;
   font-size: 12px;
   color: var(--color-caution);
   font-family: var(--font-mono);
 }
 .faillabel.r {
-  right: 24%;
-  top: 6px;
+  right: 4%;
+  top: 4px;
 }
 .faillabel.l {
-  left: 21%;
-  top: 132px;
+  left: 4%;
+  bottom: 4px;
 }
 .agentcard {
   position: relative;

@@ -180,20 +180,22 @@ export default function LivePage() {
 
       {/* agent recovery band — only when a real failure activated it */}
       {state.recoveryActive ? (
-        <div className="recovery">
-          <svg className="loop" viewBox="0 0 1152 184" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M760 0 C760 34 720 46 600 46" />
-            <path className="ah" d="M604 41 l-10 5 l10 5 z" />
-            <path d="M552 138 C420 138 300 128 300 30" />
-            <path className="ah" d="M295 34 l5 -10 l5 10 z" />
-          </svg>
+        <div className="recovery-outer">
           <span className="faillabel r" aria-hidden="true">
             ↘ {mode === "technical" ? "!ok" : "if it fails"}
           </span>
+          <div className="recovery">
+            <svg className="loop" viewBox="0 0 1152 184" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M760 0 C760 34 720 46 600 46" />
+              <path className="ah" d="M604 41 l-10 5 l10 5 z" />
+              <path d="M552 138 C420 138 300 128 300 30" />
+              <path className="ah" d="M295 34 l5 -10 l5 10 z" />
+            </svg>
+            <AgentLoopCard mode={mode} episode={episode} onOpenReasoning={openDrawer} />
+          </div>
           <span className="faillabel l" aria-hidden="true">
             ↻ {mode === "technical" ? "resubmit" : "resend"}
           </span>
-          <AgentLoopCard mode={mode} episode={episode} onOpenReasoning={openDrawer} />
         </div>
       ) : null}
 
