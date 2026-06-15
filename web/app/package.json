@@ -4,7 +4,9 @@
   "private": true,
   "description": "Smartransact public web app (Epic 8) — isolated Next.js frontend workspace. See web/app README / story 8.2 for why this is a nested workspace (bundler resolution, incompatible with the NodeNext backend root).",
   "scripts": {
+    "predev": "node scripts/copy-evidence.mjs",
     "dev": "next dev -p 3100",
+    "prebuild": "node scripts/copy-evidence.mjs",
     "build": "next build",
     "start": "next start -p 3100",
     "typecheck": "tsc --noEmit",

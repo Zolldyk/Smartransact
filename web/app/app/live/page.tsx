@@ -1,98 +1,259 @@
 "use client";
 
-// /live — MINIMAL PLACEHOLDER (story 8.2 AC6). Story 8.3 replaces this with the
-// real transaction-flow centerpiece (pipeline, CommitPips, agent drawer, the
-// Basic/Technical toggle). For now it proves the WS pipe end-to-end: it opens
-// the backend socket with the launch overrides (handed over in-memory from Run),
-// sends them as the first frame, and renders connection state + a running count
-// of received evidence events. A clean default dryRun run streams exactly
-// `sessionStarted → sessionEnded` (count ticks to 2) — that is correct, not a
-// bug (the orchestrator emits no per-bundle events in dryRun).
+// /live — THE CENTERPIECE (story 8.3). The transaction-flow pipeline, the agent
+// recovery loop + reasoning drawer, and the global Basic⇄Technical depth toggle —
+// all driven ENTIRELY by the evidence-event stream (AC3), through the single
+// sanctioned reducer (lib/lifecycle-state.ts).
+//
+// Two sources, one code path (AC7): with a pending Run hand-off → the LIVE WS
+// source (your dryRun session, dryRun-safe badge); otherwise → the REPLAY source
+// (the committed real mainnet run, auto-played, "REAL MAINNET RUN" badge). The
+// two are never confused. Honest empty/sparse states throughout (AC8): a dryRun
+// session emits only sessionStarted→sessionEnded; the committed run carries no
+// landing — and we render exactly that, fabricating nothing.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { takePendingSession } from "@/lib/pending-session";
 import { openSession, type ConnectionState, type SessionHandle } from "@/lib/session-client";
-import type { ClientOverrides } from "@/lib/overrides";
-import { DryRunSafeBadge } from "@/components/ui/badge";
+import { makeReplaySource, type EvidenceSource } from "@/lib/replay-source";
+import { parseEvidenceEvent } from "@/lib/evidence-events";
+import { initialLiveState, latestEpisode, reduceEvidence, type LiveState } from "@/lib/lifecycle-state";
+import { INPUT_COPY, useDepthMode, type DepthMode } from "@/lib/depth-mode";
+import { DryRunSafeBadge, RealMainnetRunBadge } from "@/components/ui/badge";
+import { SegmentedToggle } from "@/components/ui/segmented-toggle";
+import { Gloss } from "@/components/ui/gloss";
+import { Pipeline } from "@/components/flow/pipeline";
+import { InputPill } from "@/components/flow/input-pill";
+import { AgentLoopCard } from "@/components/flow/agent-loop-card";
+import { AgentDrawer } from "@/components/flow/agent-drawer";
 
-const STATE_LABEL: Record<ConnectionState, string> = {
-  connecting: "connecting to mainnet…",
-  live: "live — streaming evidence",
-  closed: "session complete",
-  error: "connection problem",
-};
+const DEPTH_OPTIONS = [
+  { value: "basic" as const, label: "Basic" },
+  { value: "technical" as const, label: "Technical" },
+];
 
-export default function LivePage() {
-  const [overrides] = useState<ClientOverrides | null>(() => takePendingSession());
-  const [conn, setConn] = useState<ConnectionState>("connecting");
-  const [count, setCount] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const handleRef = useRef<SessionHandle | null>(null);
+function fmt(n: number): string {
+  return n.toLocaleString("en-US");
+}
 
-  useEffect(() => {
-    if (!overrides) return;
-    const handle = openSession(overrides, {
-      onState: setConn,
-      onEvent: () => setCount((c) => c + 1),
-      onError: (msg) => setError(msg),
-    });
-    handleRef.current = handle;
-    return () => handle.close();
-  }, [overrides]);
-
-  // Arrived without a launch (refresh / deep link) — honest empty state.
-  if (!overrides) {
-    return (
-      <div className="wrap">
-        <div className="live-card">
-          <div className="eyebrow">Live</div>
-          <h2 style={{ marginTop: 14 }}>No active session</h2>
-          <p className="conn-label" style={{ marginTop: 8 }}>
-            The full mainnet replay lands here in a later story. For now, start your own dryRun session.
-          </p>
-          <p style={{ marginTop: 22 }}>
-            <Link href="/run" className="btn-ghost">
-              Go to Run →
-            </Link>
-          </p>
-        </div>
-      </div>
+/** Plain-language (Basic) / data (Technical) caption — derived from state only. */
+function caption(state: LiveState, mode: DepthMode, provenance: "live" | "replay"): ReactNode {
+  if (!state.sessionStarted) {
+    return mode === "technical" ? "Opening the evidence stream…" : "Connecting to mainnet…";
+  }
+  // dryRun terminal: a user session that submitted nothing (locked 8.1 contract).
+  if (state.sessionEnded && !state.bundleSubmittedSeen) {
+    return mode === "technical" ? (
+      <>
+        <span className="mono">dryRun</span> session — <span className="mono">sessionStarted → sessionEnded</span>, no{" "}
+        <span className="mono">bundleSubmitted</span> (safe mode, no SOL).
+      </>
+    ) : (
+      "Safe mode — this run prepared a transaction but submitted nothing (no SOL spent)."
     );
   }
+  if (state.landed) {
+    return mode === "technical"
+      ? "Finalized — a real commitmentTransition lit the Landed stage."
+      : "It landed — confirmed and final on-chain.";
+  }
+  if (state.recoveryActive || provenance === "replay") {
+    return mode === "technical" ? (
+      <>
+        Submitted &amp; retried under live congestion — the agent ran{" "}
+        <span className="mono">classifyFailure → AgentDecision → executeDecision</span> each time. No{" "}
+        <span className="mono">commitmentTransition</span> yet: a confirmed landing needs Jito searcher access (see Evidence). Nothing here is staged.
+      </>
+    ) : (
+      <>
+        The transaction was sent and retried under live congestion — each time one attempt failed (an expired{" "}
+        <Gloss term="blockhash">freshness stamp</Gloss>), the agent diagnosed it and re-decided. A confirmed landing needs Jito searcher
+        access — so the Landed step stays honestly unlit. <b>Nothing here is staged.</b>
+      </>
+    );
+  }
+  return mode === "technical" ? "Streaming evidence…" : "Sending the transaction…";
+}
+
+export default function LivePage() {
+  const { mode, setMode } = useDepthMode();
+  const [overrides] = useState(() => takePendingSession());
+  const provenance: "live" | "replay" = overrides ? "live" : "replay";
+
+  const [state, setState] = useState<LiveState>(initialLiveState);
+  const [conn, setConn] = useState<ConnectionState>("connecting");
+  const [error, setError] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  // Build the source once: live (WS) when launched from Run, else committed replay.
+  const source = useMemo<EvidenceSource>(() => {
+    if (overrides) {
+      return { provenance: "live", open: (handlers) => openSession(overrides, handlers) };
+    }
+    return makeReplaySource();
+  }, [overrides]);
+
+  useEffect(() => {
+    setState(initialLiveState);
+    const handle: SessionHandle = source.open({
+      onState: setConn,
+      onEvent: (raw) => {
+        const parsed = parseEvidenceEvent(raw);
+        if (parsed) setState((prev) => reduceEvidence(prev, parsed));
+      },
+      onError: (msg) => setError(msg),
+    });
+    return () => handle.close();
+  }, [source]);
+
+  const episode = latestEpisode(state);
+
+  function openDrawer() {
+    triggerRef.current = (typeof document !== "undefined" ? (document.activeElement as HTMLElement) : null) ?? null;
+    setDrawerOpen(true);
+  }
+  function closeDrawer() {
+    setDrawerOpen(false);
+    triggerRef.current?.focus();
+  }
+
+  const inputCopy = INPUT_COPY[mode];
+  const showInputValue = mode === "technical";
 
   return (
-    <div className="wrap">
-      <div className="live-card">
-        <div className="eyebrow" style={{ marginBottom: 18 }}>
-          Your session
+    <div className="flow-wrap">
+      <div className="flow-head">
+        <div>
+          <div className="eyebrow">The transaction stack · live</div>
+          <h1 className="flow-h1">
+            {mode === "technical" ? "Bundle lifecycle, on mainnet" : "Watch a transaction move through Solana"}
+          </h1>
+          <p className="flow-sub">
+            {mode === "technical"
+              ? "Real terms, on-chain data, and the agent’s decision path."
+              : "Follow it through every stage — and watch the agent step in when one fails."}
+          </p>
         </div>
-
-        <p className="conn-label">
-          <span className={`conn-dot ${conn}`} aria-hidden="true" />
-          {STATE_LABEL[conn]}
-        </p>
-
-        <div className="count-big mono" aria-live="polite">
-          {count}
+        <div className="flow-toggle">
+          <span className="seg-pre" aria-hidden="true">
+            view
+          </span>
+          <SegmentedToggle options={DEPTH_OPTIONS} value={mode} onChange={setMode} ariaLabel="Explanation depth" />
         </div>
-        <div className="count-label">evidence events received</div>
-
-        {error && (
-          <div className="live-error" role="alert">
-            {error}
-          </div>
-        )}
-
-        <p style={{ marginTop: 24 }}>
-          <DryRunSafeBadge />
-        </p>
-
-        <p className="conn-label" style={{ marginTop: 20, fontSize: 12 }}>
-          A clean dryRun run streams <span className="mono">sessionStarted → sessionEnded</span>. The full lifecycle visualization
-          arrives in the next story.
-        </p>
       </div>
+
+      <div className="flow-prov">
+        {provenance === "replay" ? <RealMainnetRunBadge /> : <DryRunSafeBadge />}
+      </div>
+
+      {/* live-input chips feeding the pipeline */}
+      <div className="inputs" aria-label="Live inputs">
+        <span className="il">live inputs</span>
+        <InputPill
+          label={inputCopy.network}
+          value={showInputValue && state.inputs.latestSlot !== undefined ? `slot ${fmt(state.inputs.latestSlot)}` : undefined}
+        />
+        <InputPill
+          label={inputCopy.leader}
+          value={
+            showInputValue && state.inputs.leaderWindow
+              ? `${fmt(state.inputs.leaderWindow.startSlot)}–${fmt(state.inputs.leaderWindow.endSlot)}`
+              : undefined
+          }
+        />
+        <InputPill
+          label={inputCopy.tip}
+          value={showInputValue && state.inputs.tipLamports !== undefined ? `${fmt(state.inputs.tipLamports)} lamports` : undefined}
+        />
+        <span className="feed" aria-hidden="true" />
+      </div>
+
+      {conn === "connecting" && !state.sessionStarted ? (
+        <p className="flow-connecting" role="status">
+          <span className="conn-dot connecting" aria-hidden="true" /> connecting…
+        </p>
+      ) : null}
+
+      <Pipeline state={state} mode={mode} />
+
+      {/* agent recovery band — only when a real failure activated it */}
+      {state.recoveryActive ? (
+        <div className="recovery">
+          <svg className="loop" viewBox="0 0 1152 184" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M760 0 C760 34 720 46 600 46" />
+            <path className="ah" d="M604 41 l-10 5 l10 5 z" />
+            <path d="M552 138 C420 138 300 128 300 30" />
+            <path className="ah" d="M295 34 l5 -10 l5 10 z" />
+          </svg>
+          <span className="faillabel r" aria-hidden="true">
+            ↘ {mode === "technical" ? "!ok" : "if it fails"}
+          </span>
+          <span className="faillabel l" aria-hidden="true">
+            ↻ {mode === "technical" ? "resubmit" : "resend"}
+          </span>
+          <AgentLoopCard mode={mode} episode={episode} onOpenReasoning={openDrawer} />
+        </div>
+      ) : null}
+
+      {/* the genuine blockhash-expiry fault — surfaced as a trust feature, calm */}
+      {state.faultInjected && state.faultDetail ? (
+        <p className="fault-note" role="note">
+          {mode === "technical" ? (
+            <>
+              Injected a real <span className="mono">expired_blockhash</span> fault — blockhash{" "}
+              <span className="mono">{state.faultDetail.staleBlockhash.slice(0, 8)}…</span> aged out at slot{" "}
+              <span className="mono">{fmt(state.faultDetail.becameStaleAtSlot)}</span> (a genuine fault, not a staged error).
+            </>
+          ) : (
+            <>
+              One attempt used a real, expired <Gloss term="blockhash">freshness stamp</Gloss> — a genuine fault the agent had to
+              recover from, not a staged error.
+            </>
+          )}
+        </p>
+      ) : null}
+
+      {error ? (
+        <p className="flow-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+
+      <p className="caption" aria-live="polite">
+        {caption(state, mode, provenance)}
+      </p>
+
+      <div className="foot">
+        <span>
+          Real Solana mainnet ·{" "}
+          <a href="https://explorer.solana.com" target="_blank" rel="noreferrer">
+            verify every step on an explorer ↗
+          </a>
+        </span>
+        <span className="foot-sep" aria-hidden="true">
+          ·
+        </span>
+        <span>
+          switch to{" "}
+          <button type="button" className="foot-link" onClick={() => setMode(mode === "basic" ? "technical" : "basic")}>
+            {mode === "basic" ? "Technical" : "Basic"}
+          </button>{" "}
+          for {mode === "basic" ? "slots, tips & the agent’s full reasoning" : "the plain-language walkthrough"}
+        </span>
+      </div>
+
+      <div className="foot-cta">
+        <Link href="/run" className="btn-ghost">
+          Run your own →
+        </Link>
+        <Link href="/evidence" className="btn-ghost">
+          Explore the evidence →
+        </Link>
+      </div>
+
+      {drawerOpen && episode ? <AgentDrawer episode={episode} mode={mode} onClose={closeDrawer} /> : null}
     </div>
   );
 }

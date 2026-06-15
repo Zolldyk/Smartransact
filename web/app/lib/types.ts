@@ -5,16 +5,16 @@
 // to JSON numbers by web/server/serialize.ts) — no wrapper envelope. A backstop
 // error frame is `{ error: string }`.
 //
-// We keep this intentionally light: 8.2's /live is a minimal placeholder that
-// only proves the pipe (connection state + event count). Story 8.3 renders the
-// rich lifecycle and will tighten these types against the real event union.
+// Story 8.3 tightened `EvidenceEvent` from the loose `{ event: string; [k] }`
+// placeholder to the real discriminated union (the single data model — AC3),
+// re-exported from `evidence-events.ts`. The wire frame is still UNVALIDATED at
+// runtime (session-client stays a thin pipe); the consumer runs
+// `parseEvidenceEvent` to gate it before reducing. `ErrorFrame` / `isErrorFrame`
+// are unchanged.
 
-/** A bare evidence event as it arrives over the wire (bigints are JSON numbers). */
-export interface EvidenceEvent {
-  event: string;
-  at: string;
-  [key: string]: unknown;
-}
+import type { EvidenceEvent } from "./evidence-events";
+
+export type { EvidenceEvent } from "./evidence-events";
 
 /** The server's backstop error frame (invalid options / session error). */
 export interface ErrorFrame {

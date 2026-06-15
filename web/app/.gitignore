@@ -4,3 +4,7 @@
 /out
 next-env.d.ts
 *.tsbuildinfo
+
+# Generated from evidence/lifecycle-log.jsonl by scripts/copy-evidence.mjs
+# (predev/prebuild). Source of truth is the repo-root evidence log.
+/public/lifecycle-run.jsonl

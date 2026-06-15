@@ -1,9 +1,11 @@
 "use client";
 
 // Top nav — 5 persistent destinations (EXPERIENCE.md › IA). The active route is
-// derived from the pathname. The live mainnet slot indicator in the mock is a
-// future enhancement (8.3 binds it to the slot-tick stream); here it is a calm
-// static "mainnet · live" marker so we never animate an unbacked number.
+// derived from the pathname. The "mainnet · live" marker stays STATIC by design:
+// there is NO slot-tick event in the evidence-event union (8.3 Dev Notes), so
+// animating a free-running slot counter here would be an unbacked number and
+// breach Evidence Integrity (AC3). Event-carried slots are surfaced on the /live
+// pipeline itself (where a real event backs them), never in the persistent nav.
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
