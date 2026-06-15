@@ -2,7 +2,7 @@
 
 Solana mainnet Jito bundle agent with adaptive LLM-powered retry. Watch a real transaction lifecycle unfold or run your own dryRun session (free, no SOL) at the live demo.
 
-**Live demo:** [YOUR_VERCEL_URL](YOUR_VERCEL_URL) — [Architecture](YOUR_VERCEL_URL/architecture) · [Docs](YOUR_VERCEL_URL/readme)
+**Live demo:** [https://smartransact.vercel.app](https://smartransact.vercel.app) — [Architecture](https://smartransact.vercel.app/architecture) · [Docs](https://smartransact.vercel.app/readme)
 
 ## CLI Quickstart
 
@@ -20,4 +20,4 @@ Jito's Block Engine has no devnet endpoint — it exists on mainnet and testnet 
 
 ## Architecture
 
-See [Architecture page](YOUR_VERCEL_URL/architecture) or `_bmad-output/planning-artifacts/architecture.md`.
+See [Architecture page](https://smartransact.vercel.app/architecture) or `_bmad-output/planning-artifacts/architecture.md`.
