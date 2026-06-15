@@ -197,24 +197,6 @@ export default function LivePage() {
         </div>
       ) : null}
 
-      {/* the genuine blockhash-expiry fault — surfaced as a trust feature, calm */}
-      {state.faultInjected && state.faultDetail ? (
-        <p className="fault-note" role="note">
-          {mode === "technical" ? (
-            <>
-              Injected a real <span className="mono">expired_blockhash</span> fault — blockhash{" "}
-              <span className="mono">{state.faultDetail.staleBlockhash.slice(0, 8)}…</span> aged out at slot{" "}
-              <span className="mono">{fmt(state.faultDetail.becameStaleAtSlot)}</span> (a genuine fault, not a staged error).
-            </>
-          ) : (
-            <>
-              One attempt used a real, expired <Gloss term="blockhash">freshness stamp</Gloss> — a genuine fault the agent had to
-              recover from, not a staged error.
-            </>
-          )}
-        </p>
-      ) : null}
-
       {error ? (
         <p className="flow-error" role="alert">
           {error}
