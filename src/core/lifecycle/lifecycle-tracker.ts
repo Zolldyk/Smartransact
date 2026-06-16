@@ -3,11 +3,15 @@ import { type TxStatusChanged } from "../../schemas/stream-event-schema.js";
 
 type BundleStage = "submitted" | "processed" | "confirmed" | "finalized";
 
-const VALID_NEXT: Record<BundleStage, "processed" | "confirmed" | "finalized" | undefined> = {
-  submitted:  "processed",
-  processed:  "confirmed",
-  confirmed:  "finalized",
-  finalized:  undefined,
+// Commitment is monotonic: submitted < processed < confirmed < finalized. Real
+// WS/gRPC signature subscriptions deliver duplicate, out-of-order, and
+// stage-skipping notifications, so progression is gated by rank, not by an
+// exact next-stage match.
+const STAGE_RANK: Record<BundleStage, number> = {
+  submitted: 0,
+  processed: 1,
+  confirmed: 2,
+  finalized: 3,
 };
 
 type BundleRecord = {
@@ -30,14 +34,16 @@ export class LifecycleTracker {
 
     if (record.stage === "finalized") return; // terminal — ignore further events
 
-    const expectedNext = VALID_NEXT[record.stage];
     const newStage = event.commitment; // "processed" | "confirmed" | "finalized"
 
-    if (newStage !== expectedNext) {
-      throw new Error(
-        `Illegal lifecycle transition for ${bundleId}: ${record.stage} → ${newStage}`,
-      );
-    }
+    // Only a STRICTLY FORWARD stage is a real advance. Same-stage (duplicate)
+    // or backward (stale / reordered) notifications are ignored silently — no
+    // throw, no fabricated event. A forward jump (e.g. submitted → confirmed
+    // when the `processed` notification was missed) is accepted and recorded as
+    // the stage actually observed; the skipped intermediate is NEVER synthesized
+    // (that would be staged data). Commitment is monotonic, so the later stage
+    // is a true, on-chain-backed progression.
+    if (STAGE_RANK[newStage] <= STAGE_RANK[record.stage]) return;
 
     const nowMs = performance.now();
     const latencyFromPrevMs = nowMs - record.lastMs;

@@ -56,26 +56,78 @@ describe("LifecycleTracker", () => {
     cleanup(sid);
   });
 
-  it("(b) illegal transition (submitted → confirmed) throws immediately", () => {
+  it("(b) a forward stage-skip (submitted → confirmed) is accepted and recorded, never throws", () => {
+    // Real WS subscriptions can miss the `processed` notification and deliver
+    // `confirmed` first. Commitment is monotonic, so confirmed is a true forward
+    // advance: record it as observed, do NOT synthesize the skipped `processed`,
+    // and do NOT throw.
     const sid = "test-lt-b";
     const log = new EvidenceLog(sid);
     const tracker = new LifecycleTracker(log);
-    tracker.register("bundle-bad");
+    tracker.register("bundle-skip");
 
     expect(() => {
       tracker.consume(
         {
           kind: "txStatusChanged",
-          signature: "sig-bad",
-          commitment: "confirmed", // illegal: current stage is "submitted", expected "processed"
+          signature: "sig-skip",
+          commitment: "confirmed",
           slot: 200n,
           transport: "ws",
         },
-        "bundle-bad",
+        "bundle-skip",
       );
-    }).toThrow();
+    }).not.toThrow();
 
     log.close();
+
+    const lines = readFileSync(`logs/lifecycle-${sid}.jsonl`, "utf-8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l) as Record<string, unknown>);
+    // Exactly one commitmentTransition (confirmed) — the skipped processed is NOT fabricated.
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({ event: "commitmentTransition", stage: "confirmed" });
+
+    cleanup(sid);
+  });
+
+  it("(d) duplicate and backward notifications are ignored silently (no extra log entries, no throw)", () => {
+    const sid = "test-lt-d";
+    const log = new EvidenceLog(sid);
+    const tracker = new LifecycleTracker(log);
+    const bundleId = "bundle-dup";
+    tracker.register(bundleId);
+
+    const ev = (commitment: "processed" | "confirmed" | "finalized", slot: bigint) => ({
+      kind: "txStatusChanged" as const,
+      signature: "sig-dup",
+      commitment,
+      slot,
+      transport: "ws" as const,
+    });
+
+    // Real stream: processed, processed(dup), confirmed, processed(stale/backward),
+    // confirmed(dup), finalized. Only 3 forward advances should be recorded.
+    expect(() => {
+      tracker.consume(ev("processed", 10n), bundleId);
+      tracker.consume(ev("processed", 10n), bundleId); // duplicate
+      tracker.consume(ev("confirmed", 11n), bundleId);
+      tracker.consume(ev("processed", 10n), bundleId); // backward / reordered
+      tracker.consume(ev("confirmed", 11n), bundleId); // duplicate
+      tracker.consume(ev("finalized", 12n), bundleId);
+      tracker.consume(ev("finalized", 12n), bundleId); // after terminal
+    }).not.toThrow();
+
+    log.close();
+
+    const lines = readFileSync(`logs/lifecycle-${sid}.jsonl`, "utf-8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l) as Record<string, unknown>);
+    expect(lines).toHaveLength(3);
+    expect(lines.map((l) => l.stage)).toEqual(["processed", "confirmed", "finalized"]);
+
     cleanup(sid);
   });
 

@@ -259,9 +259,13 @@ export async function runSession(params: SessionParams): Promise<void> {
         const bundleId = sigToBundleId.get(event.signature);
         if (bundleId !== undefined) {
           try {
+            // The tracker is total over commitment ordering (it ignores
+            // duplicate/stale/reordered notifications); a throw here would be an
+            // unexpected fault (e.g. an evidence-log write error), not normal
+            // stream noise.
             tracker.consume(event as TxStatusChanged, bundleId);
           } catch (err) {
-            console.error("[orchestrator] Illegal tracker transition:", err);
+            console.error("[orchestrator] tracker.consume failed:", err);
           }
           console.log(`[${bundleId.slice(0, 8)}…] ${event.commitment} at slot ${event.slot}`);
           if (event.commitment === "finalized") {
