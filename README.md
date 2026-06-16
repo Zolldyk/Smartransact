@@ -16,8 +16,8 @@ npx tsx src/cli/main.ts tail                        # stream the evidence log
 
 ## Why Mainnet
 
-Jito's Block Engine has no devnet endpoint; it exists on mainnet and testnet only. The bounty §6 permits "devnet or mainnet"; Jito's constraint makes mainnet the only network satisfying both §6 and the bundle requirement. `dryRun: true` (default) keeps all development free.
+Jito's Block Engine has no devnet endpoint; it exists on mainnet and testnet only. The run can be done on "devnet or mainnet" but Jito's constraint makes mainnet the only network satisfying both §6 and the bundle requirement. `dryRun: true` (default) keeps all development free.
 
 ## Architecture
 
-See [Architecture page](https://smartransact.vercel.app/architecture) or `_bmad-output/planning-artifacts/architecture.md`.
+See [Architecture page](https://smartransact.vercel.app/architecture) .
