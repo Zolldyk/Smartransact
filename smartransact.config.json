@@ -38,7 +38,7 @@
       "jitoBlockEngineUrl": "https://frankfurt.mainnet.block-engine.jito.wtf",
       "jitoSearcherUrl": "frankfurt.mainnet.block-engine.jito.wtf",
       "bundleCount": 12,
-      "faultInjection": { "atBundle": 6 },
+      "faultInjection": { "atBundle": 4, "atBundles": [4, 8] },
       "guardrails": {
         "maxTipLamports": 1000000,
         "tipBand": [1000, 1000000],

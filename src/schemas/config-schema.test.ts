@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ConfigFileSchema, GuardrailsSchema, ProfileSchema, LlmConfigSchema } from "./config-schema.js";
+import { ConfigFileSchema, GuardrailsSchema, ProfileSchema, LlmConfigSchema, faultBundleIndices } from "./config-schema.js";
 
 describe("LlmConfigSchema (Story 7.3)", () => {
   it("accepts the claude provider", () => {
@@ -155,6 +155,37 @@ describe("ProfileSchema faultInjection.atBundle vs bundleCount", () => {
           },
         },
       }).success
+    ).toBe(false);
+  });
+});
+
+describe("faultBundleIndices + multi-fault drill (Story 5.9)", () => {
+  it("normalizes to [atBundle] when atBundles is absent or empty", () => {
+    expect(faultBundleIndices({ atBundle: 6 })).toEqual([6]);
+    expect(faultBundleIndices({ atBundle: 6, atBundles: [] })).toEqual([6]);
+  });
+
+  it("atBundles supersedes atBundle when present and non-empty", () => {
+    expect(faultBundleIndices({ atBundle: 4, atBundles: [4, 8] })).toEqual([4, 8]);
+  });
+
+  it("accepts a valid multi-fault profile (all indices < bundleCount)", () => {
+    expect(
+      ProfileSchema.safeParse({
+        ...WS_PROFILE,
+        bundleCount: 12,
+        faultInjection: { atBundle: 4, atBundles: [4, 8] },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects a multi-fault profile when ANY index >= bundleCount", () => {
+    expect(
+      ProfileSchema.safeParse({
+        ...WS_PROFILE,
+        bundleCount: 10,
+        faultInjection: { atBundle: 4, atBundles: [4, 10] },
+      }).success,
     ).toBe(false);
   });
 });

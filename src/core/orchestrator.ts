@@ -4,8 +4,13 @@
 // Direction: core → agent, this file only. The graded boundary (agent → core) stays
 // zero. See architecture.md §Architectural-Boundaries.
 
-import { createSolanaRpc, type BlockhashLifetimeConstraint } from "@solana/kit";
+import {
+  createSolanaRpc,
+  type BlockhashLifetimeConstraint,
+  type Base64EncodedWireTransaction,
+} from "@solana/kit";
 import type { AppConfig } from "../config.js";
+import { faultBundleIndices } from "../schemas/config-schema.js";
 import { EvidenceLog } from "./evidence/evidence-log.js";
 import { LifecycleStream } from "./stream/lifecycle-stream.js";
 import { GrpcAdapter } from "./stream/grpc-adapter.js";
@@ -81,10 +86,37 @@ export function buildFailureContext(
   return { classification: cf.classification, rawError: cf.rawError, failedAtSlot };
 }
 
-/** Returns true when this bundleIndex should receive fault injection.
- * The index comes from config — never hardcoded (AC6 / CM1). */
-export function isFaultBundle(bundleIndex: number, atBundle: number): boolean {
-  return bundleIndex === atBundle;
+/** Returns true when this bundleIndex should receive fault injection. The
+ * fault target(s) come from config — never hardcoded (AC6 / CM1). Accepts a
+ * single index (single-fault profiles) or a list (Story 5.9 multi-fault drill,
+ * which produces ≥2 genuine `expired_blockhash` failures + recoveries). */
+export function isFaultBundle(
+  bundleIndex: number,
+  faultIndices: number | number[],
+): boolean {
+  return Array.isArray(faultIndices)
+    ? faultIndices.includes(bundleIndex)
+    : bundleIndex === faultIndices;
+}
+
+/** Inspects a `simulateTransaction` RPC `value` for a genuine pre-flight
+ * rejection. Returns the REAL validator error string the node reported (e.g.
+ * "BlockhashNotFound" for a genuinely expired blockhash), or null when the
+ * simulation would proceed. It NEVER synthesizes, forces, or hardcodes an
+ * error — it only surfaces what the RPC actually returned, so the downstream
+ * `classifyFailure` result stays honest (Story 5.9 AC3 / fault-injection
+ * honesty constraint). When `logs` are present they are appended because some
+ * failures carry their real reason there rather than in `err`. */
+export function extractSimulationError(value: {
+  err: unknown;
+  logs?: readonly string[] | null;
+}): string | null {
+  if (value.err === null || value.err === undefined) return null;
+  const errStr =
+    typeof value.err === "string" ? value.err : JSON.stringify(value.err);
+  const logs =
+    value.logs && value.logs.length > 0 ? ` ${value.logs.join(" ")}` : "";
+  return `${errStr}${logs}`;
 }
 
 // ─── Session entry point ──────────────────────────────────────────────────────
@@ -323,9 +355,13 @@ async function _runBundleLoop(
     baseURL: config.llm.baseURL,
   });
 
-  console.log(`[session] submitting ${config.bundleCount} bundles — dryRun: ${config.guardrails.dryRun}`);
+  // Fault target(s) for this session — single index or the multi-fault list
+  // (Story 5.9). Computed once; never hardcoded (sourced from config).
+  const faultIndices = faultBundleIndices(config.faultInjection);
 
-  // Bundle loop: 0-based index matching config.faultInjection.atBundle semantics.
+  console.log(`[session] submitting ${config.bundleCount} bundles — dryRun: ${config.guardrails.dryRun} — fault at bundle index(es) ${faultIndices.join(", ")}`);
+
+  // Bundle loop: 0-based index matching config.faultInjection semantics.
   for (let bundleIndex = 0; bundleIndex < config.bundleCount; bundleIndex++) {
     if (ac.signal.aborted) break;
 
@@ -350,7 +386,7 @@ async function _runBundleLoop(
     let lifetimeConstraint: BlockhashLifetimeConstraint;
     let blockhashFetchedAtSlot: bigint;
 
-    if (!config.guardrails.dryRun && isFaultBundle(bundleIndex, config.faultInjection.atBundle)) {
+    if (!config.guardrails.dryRun && isFaultBundle(bundleIndex, faultIndices)) {
       const stale = await injectBlockhashExpiry(rpc, evidenceLog, ac.signal);
       if (ac.signal.aborted) break;
       lifetimeConstraint = stale.lifetimeConstraint;
@@ -377,6 +413,59 @@ async function _runBundleLoop(
     if (config.guardrails.dryRun) {
       console.log(`[bundle ${bundleIndex + 1}/${config.bundleCount}] dryRun — tip=${tip} lamports, slot=${leaderWindow.getCurrentSlot()}`);
       continue;
+    }
+
+    // Story 5.9 AC3 — fault-bundle-only honest pre-flight. We are past the
+    // dryRun `continue`, so for the fault bundle the blockhash built above is
+    // the genuinely-stale one from injectBlockhashExpiry. Simulate the lead tx
+    // to surface the REAL "BlockhashNotFound" rejection the searcher path would
+    // otherwise hide, classify it honestly, and route the agent recovery on the
+    // live transport. Scoped to the fault bundle: zero searcher-budget cost,
+    // landing path untouched. If the sim would actually proceed (null) we fall
+    // through to a normal submission — nothing forced.
+    if (isFaultBundle(bundleIndex, faultIndices)) {
+      const simError = await _simulateFaultBundleForExpiry(
+        rpc,
+        bundleResult.transactions[0]!,
+        ac.signal,
+      );
+      if (ac.signal.aborted) break;
+      if (simError !== null) {
+        const cf = classifyFailure(simError);
+        evidenceLog.append({
+          event: "failureClassified",
+          at: new Date().toISOString(),
+          classification: cf.classification,
+          rawError: cf.rawError,
+        });
+        console.log(
+          `[bundle ${bundleIndex + 1}/${config.bundleCount}] fault pre-flight rejected — ${cf.classification}`,
+        );
+        await _runAgentEpisode({
+          bundleIndex,
+          cf,
+          blockhashFetchedAtSlot,
+          failedAtSlot: leaderWindow.getCurrentSlot(),
+          lifetimeConstraint,
+          tip,
+          tipAccounts,
+          tipAccount,
+          tipMarket,
+          provider,
+          config,
+          submitter: searcher ?? jito,
+          rpc,
+          adapter,
+          tracker,
+          leaderWindow,
+          evidenceLog,
+          settlements,
+          sigToBundleId,
+          ac,
+          priorBundleId: undefined,
+        });
+        continue;
+      }
     }
 
     // Capture leader window before submission for the bundleSubmitted event.
@@ -488,6 +577,44 @@ async function _runBundleLoop(
       ac,
       priorBundleId: bundleId,
     });
+  }
+}
+
+// ─── Fault-bundle honest pre-flight (Story 5.9 AC3) ───────────────────────────
+
+/** Fault-bundle-only honest pre-flight. The injected blockhash is genuinely
+ * expired on-chain, but `searcher.sendBundle` ACCEPTS the bundle (returns an id)
+ * and the transaction then silently never lands — the searcher deliberately
+ * omits `onBundleResult` (it trips 8 RESOURCE_EXHAUSTED), so the only landing
+ * signal is `trackSignature → txStatusChanged`, which never fires for a tx the
+ * validator rejects pre-execution. A plain submission therefore times out into
+ * a generic `bundle_failure` and the real reason is lost. A single
+ * `simulateTransaction` on the lead tx makes the validator report the REAL
+ * rejection ("BlockhashNotFound") that `classifyFailure` maps to
+ * `expired_blockhash`. It uses the RPC (not the searcher), so it costs nothing
+ * against the 2 req/s searcher budget, and the caller scopes it to the fault
+ * bundle so the landing path is untouched. Returns the real error string, or
+ * null when the simulation would actually proceed (then the caller falls
+ * through to a normal submission — nothing is forced). */
+async function _simulateFaultBundleForExpiry(
+  rpc: ReturnType<typeof createSolanaRpc>,
+  leadTxBase64: string,
+  signal: AbortSignal,
+): Promise<string | null> {
+  try {
+    const sim = await rpc
+      .simulateTransaction(leadTxBase64 as Base64EncodedWireTransaction, {
+        encoding: "base64",
+        sigVerify: false,
+        replaceRecentBlockhash: false,
+      })
+      .send({ abortSignal: signal });
+    return extractSimulationError(sim.value);
+  } catch (err) {
+    // A thrown JSON-RPC error (e.g. -32002 "Blockhash not found") IS the real
+    // rejection reason for the expired blockhash — surface it honestly rather
+    // than swallow it.
+    return err instanceof Error ? err.message : String(err);
   }
 }
 

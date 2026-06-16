@@ -61,15 +61,16 @@ function caption(state: LiveState, mode: DepthMode, provenance: "live" | "replay
   if (state.recoveryActive || provenance === "replay") {
     return mode === "technical" ? (
       <>
-        Submitted &amp; retried under live congestion: the agent ran{" "}
-        <span className="mono">classifyFailure → AgentDecision → executeDecision</span> each time. No{" "}
-        <span className="mono">commitmentTransition</span> yet: a confirmed landing needs Jito searcher access (see Evidence). Nothing here is staged.
+        Submitted &amp; recovered from a real injected fault: the agent ran{" "}
+        <span className="mono">classifyFailure → AgentDecision → executeDecision</span>, refreshed the expired{" "}
+        <span className="mono">blockhash</span>, and resubmitted on the Jito searcher transport. Real{" "}
+        <span className="mono">commitmentTransition</span> events confirm the recovered landings. Nothing here is staged.
       </>
     ) : (
       <>
-        The transaction was sent and retried under live congestion: each time one attempt failed (an expired{" "}
-        <Gloss term="blockhash">freshness stamp</Gloss>), the agent diagnosed it and re-decided. A confirmed landing needs Jito searcher
-        access, so the Landed step stays honestly unlit. <b>Nothing here is staged.</b>
+        The transaction was sent, hit an injected expired <Gloss term="blockhash">freshness stamp</Gloss>, and
+        the agent diagnosed it, fetched a fresh one, and resubmitted. The recovered bundle then landed on-chain,
+        confirmed by real on-chain events. <b>Nothing here is staged.</b>
       </>
     );
   }

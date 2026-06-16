@@ -3,8 +3,9 @@
 // The Track-stage commitment dots: submitted · processed · confirmed · finalized
 // → "N of 4". Each dot lights ONLY from real evidence (submitted from
 // bundleSubmitted, the rest from commitmentTransition) — the honesty rule (AC3):
-// the committed run, which carries no commitmentTransition, shows "1 of 4" with
-// no live/finalized pip, never a fabricated landing. Status is dot SHAPE +
+// the committed run carries real commitmentTransition events, so landed bundles
+// light all four pips through to finalized; a run with no commitment would show
+// "1 of 4" and never a fabricated landing. Status is dot SHAPE +
 // the "N of 4" text + an sr-only phrase, not color alone (AC8).
 
 import type { CommitPips } from "@/lib/lifecycle-state";

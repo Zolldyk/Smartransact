@@ -27,7 +27,23 @@ export const GuardrailsSchema = z
 
 export const FaultInjectionSchema = z.object({
   atBundle: z.number().int().nonnegative(),
+  /** Optional multi-fault drill: inject the blockhash-expiry fault
+   * at EACH listed 0-based bundle index, producing one genuine `expired_blockhash`
+   * failure + autonomous agent recovery per index. When present and non-empty it
+   * SUPERSEDES `atBundle` (which stays required for backward-compat: single-fault
+   * profiles, the standalone inject-fault drill, and the web sandbox all keep
+   * using it). Each listed index must be < bundleCount. */
+  atBundles: z.array(z.number().int().nonnegative()).min(1).optional(),
 });
+
+export type FaultInjection = z.infer<typeof FaultInjectionSchema>;
+
+/** Normalizes a FaultInjection to the set of 0-based bundle indices that
+ * receive the fault. `atBundles` (when present and non-empty) supersedes the
+ * single `atBundle`. The sole place the single-vs-multi precedence lives. */
+export function faultBundleIndices(fi: FaultInjection): number[] {
+  return fi.atBundles && fi.atBundles.length > 0 ? fi.atBundles : [fi.atBundle];
+}
 
 export const LlmConfigSchema = z.object({
   provider: z.enum(["gemini", "groq", "claude"]).optional().default("gemini"),
@@ -71,12 +87,14 @@ const GrpcProfileSchema = z.object({
 export const ProfileSchema = z
   .discriminatedUnion("adapter", [WsProfileSchema, GrpcProfileSchema])
   .superRefine((p, ctx) => {
-    if (p.faultInjection.atBundle >= p.bundleCount) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["faultInjection", "atBundle"],
-        message: `faultInjection.atBundle (${p.faultInjection.atBundle}) must be a valid 0-based bundle index < bundleCount (${p.bundleCount}); otherwise the fault drill never fires`,
-      });
+    for (const idx of faultBundleIndices(p.faultInjection)) {
+      if (idx >= p.bundleCount) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["faultInjection"],
+          message: `faultInjection index (${idx}) must be a valid 0-based bundle index < bundleCount (${p.bundleCount}); otherwise the fault drill never fires`,
+        });
+      }
     }
   });
 
