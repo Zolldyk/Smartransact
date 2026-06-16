@@ -58,7 +58,7 @@ function makeParams(
     lifetimeConstraint: dummyConstraint,
     keypairPath: "/unused",
     tipAccount: "11111111111111111111111111111112",
-    jitoClient: new JitoClient("http://unused"),
+    submitter: new JitoClient("http://unused"),
     rpc: createSolanaRpc("http://unused"),
     evidenceLog,
     guardrails: G,

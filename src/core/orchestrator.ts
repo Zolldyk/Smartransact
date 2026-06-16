@@ -20,7 +20,7 @@ import { fetchLiveTipData } from "./jito/tip-data.js";
 import { computeTip } from "./jito/tip-calculator.js";
 import { buildBundle } from "./jito/bundle-builder.js";
 import { injectBlockhashExpiry } from "./fault/blockhash-expiry.js";
-import { executeDecision } from "./execute/decision-executor.js";
+import { executeDecision, type BundleSubmitter } from "./execute/decision-executor.js";
 import { lamportsToNumber, slotsToNumber } from "./units.js";
 import type { TxStatusChanged } from "../schemas/stream-event-schema.js";
 import type { EvidenceEvent } from "../schemas/evidence-event-schema.js";
@@ -138,17 +138,31 @@ export async function runSession(params: SessionParams): Promise<void> {
         : new RpcWebSocketAdapter(config.rpcEndpoint, config.wsEndpoint, stream);
 
     // Searcher mode (Story 5.8): opt-in per profile — requires BOTH a searcher
-    // host AND a fund-less auth keypair. When enabled, the LeaderWindow targets
-    // the searcher-confirmed Jito leader window and bundle submission routes
-    // through the authenticated searcher transport (CD-1). Otherwise the
-    // empirical +1n/+4n guess + hand-rolled JitoClient path stay byte-for-byte
-    // unchanged (AC3). Web sessions never reach here (no auth keypair, NFR9).
+    // host AND a fund-less auth keypair, AND a live (non-dryRun) run. When enabled,
+    // the LeaderWindow targets the searcher-confirmed Jito leader window and bundle
+    // submission (primary AND agent-episode resubmits) route through the
+    // authenticated searcher transport (CD-1). Otherwise the empirical +1n/+4n guess
+    // + hand-rolled JitoClient path stay byte-for-byte unchanged (AC3). Web sessions
+    // never reach here (no auth keypair, NFR9).
+    const hasSearcherUrl = !!config.jitoSearcherUrl;
+    const hasAuthKeypair = !!config.jitoAuthKeypairPath;
+    // dryRun is offline/free by contract — never construct the searcher (which
+    // reads the auth keypair and fires an authenticated getTipAccounts call) in
+    // dryRun. Searcher mode is live-operator-only.
     const searcher: SearcherClient | undefined =
-      config.jitoSearcherUrl && config.jitoAuthKeypairPath
-        ? new SearcherClient(config.jitoSearcherUrl, config.jitoAuthKeypairPath)
+      !config.guardrails.dryRun && hasSearcherUrl && hasAuthKeypair
+        ? new SearcherClient(config.jitoSearcherUrl!, config.jitoAuthKeypairPath!)
         : undefined;
     if (searcher) {
       console.log("[session] Jito searcher mode ENABLED — confirmed-leader targeting via getNextScheduledLeader");
+    } else if (hasSearcherUrl !== hasAuthKeypair) {
+      // Exactly one half of searcher mode is configured — surface it so the
+      // operator is not silently running the public block-engine path.
+      console.warn(
+        `[session] searcher mode half-configured (jitoSearcherUrl=${hasSearcherUrl}, jitoAuthKeypairPath=${hasAuthKeypair}) — running the public block-engine path. Set BOTH to enable confirmed-leader targeting.`,
+      );
+    } else if (hasSearcherUrl && hasAuthKeypair && config.guardrails.dryRun) {
+      console.log("[session] searcher mode configured but skipped (dryRun) — no authenticated Jito calls in dryRun");
     }
 
     const leaderWindow = new LeaderWindow(searcher);
@@ -398,7 +412,7 @@ async function _runBundleLoop(
         tipMarket,
         provider,
         config,
-        jito,
+        submitter: searcher ?? jito,
         rpc,
         adapter,
         tracker,
@@ -463,7 +477,7 @@ async function _runBundleLoop(
       tipMarket,
       provider,
       config,
-      jito,
+      submitter: searcher ?? jito,
       rpc,
       adapter,
       tracker,
@@ -503,7 +517,9 @@ type AgentEpisodeParams = {
   tipMarket: TipMarketData;
   provider: LlmProvider;
   config: AppConfig;
-  jito: JitoClient;
+  /** Active bundle transport (searcher in searcher mode, else JitoClient) — the
+   * agent-episode resubmit path uses the SAME transport as the primary submit. */
+  submitter: BundleSubmitter;
   rpc: ReturnType<typeof createSolanaRpc>;
   adapter: GrpcAdapter | RpcWebSocketAdapter;
   tracker: LifecycleTracker;
@@ -560,7 +576,7 @@ async function _runAgentEpisode(p: AgentEpisodeParams): Promise<void> {
       lifetimeConstraint: currentConstraint,
       keypairPath: p.config.keypairPath,
       tipAccount: p.tipAccount,
-      jitoClient: p.jito,
+      submitter: p.submitter,
       rpc: p.rpc,
       evidenceLog: p.evidenceLog,
       guardrails: p.config.guardrails,

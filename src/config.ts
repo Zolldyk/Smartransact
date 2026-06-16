@@ -12,7 +12,12 @@ export function assertJitoAuthKeypair(
   jitoAuthKeypairPath: string | undefined,
   keypairPath: string,
 ): void {
-  if (jitoAuthKeypairPath !== undefined && jitoAuthKeypairPath === keypairPath) {
+  // Compare RESOLVED absolute paths so the funded-payer guard cannot be bypassed
+  // by spelling the same file two ways (relative vs absolute, "./x" vs "x").
+  if (
+    jitoAuthKeypairPath !== undefined &&
+    resolve(jitoAuthKeypairPath) === resolve(keypairPath)
+  ) {
     throw new Error(
       "JITO_AUTH_KEYPAIR_PATH must not be the funded payer keypair (KEYPAIR_PATH); use a separate fund-less keypair for Jito searcher auth",
     );

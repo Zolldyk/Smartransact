@@ -91,8 +91,10 @@ export class SearcherClient {
   }
 
   async getTipAccounts(signal?: AbortSignal): Promise<Result<string[], { reason: string }>> {
-    await this._rateLimit(signal);
     try {
+      // Inside the try (like JitoClient): an abort during the rate-limit wait
+      // resolves to fail({reason}), never an unhandled rejection.
+      await this._rateLimit(signal);
       const res = await this._transport.getTipAccounts();
       return res.ok ? ok(res.value) : fail({ reason: reasonOf(res.error) });
     } catch (err) {
@@ -103,8 +105,8 @@ export class SearcherClient {
   async getNextScheduledLeader(
     signal?: AbortSignal,
   ): Promise<Result<{ currentSlot: bigint; nextLeaderSlot: bigint }, { reason: string }>> {
-    await this._rateLimit(signal);
     try {
+      await this._rateLimit(signal);
       const res = await this._transport.getNextScheduledLeader();
       return res.ok
         ? ok({ currentSlot: BigInt(res.value.currentSlot), nextLeaderSlot: BigInt(res.value.nextLeaderSlot) })
@@ -117,8 +119,8 @@ export class SearcherClient {
   /** Same input shape as JitoClient.sendBundle (base64 wire txs); routes through the
    * authenticated searcher transport instead of the public HTTP block engine (CD-1). */
   async sendBundle(base64Txs: string[], signal?: AbortSignal): Promise<Result<string, { reason: string }>> {
-    await this._rateLimit(signal);
     try {
+      await this._rateLimit(signal);
       const bundle = buildSearcherBundle(base64Txs);
       const res = await this._transport.sendBundle(bundle);
       return res.ok ? ok(res.value) : fail({ reason: reasonOf(res.error) });

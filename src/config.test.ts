@@ -15,4 +15,14 @@ describe("assertJitoAuthKeypair (Story 5.8 AC2)", () => {
   it("passes when no searcher auth keypair is configured (undefined)", () => {
     expect(() => assertJitoAuthKeypair(undefined, "/keys/payer.json")).not.toThrow();
   });
+
+  it("throws when the two paths resolve to the same file (relative vs absolute spelling)", () => {
+    const abs = `${process.cwd()}/keypair-mainnet.json`;
+    expect(() => assertJitoAuthKeypair("keypair-mainnet.json", abs)).toThrow(
+      /must not be the funded payer keypair/,
+    );
+    expect(() => assertJitoAuthKeypair("./keypair-mainnet.json", "keypair-mainnet.json")).toThrow(
+      /must not be the funded payer keypair/,
+    );
+  });
 });

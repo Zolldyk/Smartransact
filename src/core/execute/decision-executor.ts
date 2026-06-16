@@ -3,9 +3,21 @@ import type { AgentDecision } from "../../schemas/decision-schema.js";
 import type { AgentObservation } from "../../schemas/observation-schema.js";
 import type { Guardrails } from "../../schemas/config-schema.js";
 import { applyGuardrails } from "./guardrails.js";
-import { type JitoClient } from "../jito/jito-client.js";
 import { buildBundle } from "../jito/bundle-builder.js";
+import type { Result } from "../result.js";
 import type { EvidenceLog } from "../evidence/evidence-log.js";
+
+/** Minimal bundle-send contract shared by the hand-rolled `JitoClient` (fallback
+ * profiles) and the authenticated `SearcherClient` (searcher mode). Both expose
+ * `sendBundle(base64Txs, signal)` with this exact shape, so the agent-episode
+ * resubmit path can route through whichever transport the session is using —
+ * keeping recovery on the SAME path as the primary submit (Story 5.8 review). */
+export interface BundleSubmitter {
+  sendBundle(
+    transactions: string[],
+    signal: AbortSignal,
+  ): Promise<Result<string, { reason: string }>>;
+}
 
 const APPROX_SLOT_DURATION_MS = 400;
 
@@ -24,7 +36,9 @@ export type ExecutorParams = {
   lifetimeConstraint: BlockhashLifetimeConstraint;
   keypairPath: string;
   tipAccount: string;
-  jitoClient: JitoClient;
+  /** Active bundle transport — `SearcherClient` in searcher mode, else `JitoClient`.
+   * Resubmits land on the same path as the primary submit (Story 5.8 review). */
+  submitter: BundleSubmitter;
   rpc: ReturnType<typeof createSolanaRpc>;
   evidenceLog: EvidenceLog;
   guardrails: Guardrails;
@@ -43,7 +57,7 @@ export type ExecutorOutcome =
 
 export async function executeDecision(params: ExecutorParams): Promise<ExecutorOutcome> {
   const { decision, observation, thinkingTrace, bundleId, lifetimeConstraint,
-          keypairPath, tipAccount, jitoClient, rpc, evidenceLog, guardrails, signal } = params;
+          keypairPath, tipAccount, submitter, rpc, evidenceLog, guardrails, signal } = params;
 
   const { decision: clampedDecision, clamped } =
     applyGuardrails(decision, guardrails, observation.guardrails.attemptsRemaining);
@@ -95,7 +109,7 @@ export async function executeDecision(params: ExecutorParams): Promise<ExecutorO
     tipLamports,
   });
 
-  const sendResult = await jitoClient.sendBundle(transactions, signal);
+  const sendResult = await submitter.sendBundle(transactions, signal);
   if (!sendResult.ok) {
     evidenceLog.append({
       event: "failureClassified",
