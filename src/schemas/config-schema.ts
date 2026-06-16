@@ -37,11 +37,18 @@ export const LlmConfigSchema = z.object({
   baseURL: z.string().url().optional(),
 });
 
+// Jito searcher block-engine host (Story 5.8) — HOST ONLY, no scheme (e.g.
+// "frankfurt.mainnet.block-engine.jito.wtf"), so `.min(1)` not `.url()`. Optional:
+// present only on profiles that opt into confirmed-leader searcher targeting. The
+// per-region whitelist means the global endpoint will NOT authenticate.
+const jitoSearcherUrlSchema = z.string().min(1).optional();
+
 const WsProfileSchema = z.object({
   adapter: z.literal("ws"),
   rpcEndpoint: z.string().min(1), // may contain ${VAR} placeholders (e.g. SolInfra ?api_key=); expanded by config.ts
   wsEndpoint: z.string().url(),
   jitoBlockEngineUrl: z.string().url(),
+  jitoSearcherUrl: jitoSearcherUrlSchema,
   bundleCount: z.number().int().positive(),
   faultInjection: FaultInjectionSchema,
   guardrails: GuardrailsSchema,
@@ -54,6 +61,7 @@ const GrpcProfileSchema = z.object({
   grpcEndpoint: z.string().min(1), // host:port or ${VAR}; NOT a URL — normalized to https:// by GrpcAdapter
   grpcXToken: z.string().optional(),
   jitoBlockEngineUrl: z.string().url(),
+  jitoSearcherUrl: jitoSearcherUrlSchema,
   bundleCount: z.number().int().positive(),
   faultInjection: FaultInjectionSchema,
   guardrails: GuardrailsSchema,
@@ -82,5 +90,9 @@ export type ConfigFile = z.infer<typeof ConfigFileSchema>;
 export type AppConfig = {
   llmApiKey: string;
   keypairPath: string;
+  /** Fund-less Jito searcher auth keypair (Story 5.8) — resolved from
+   * JITO_AUTH_KEYPAIR_PATH; MUST differ from keypairPath (config.ts asserts).
+   * Undefined unless the operator opts into searcher mode. */
+  jitoAuthKeypairPath?: string;
 } & Profile;
 export type Guardrails = z.infer<typeof GuardrailsSchema>;

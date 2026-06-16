@@ -1,5 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { LeaderWindow } from "./leader-window.js";
+import { LeaderWindow, type LeaderSearcher } from "./leader-window.js";
+import { ok, fail } from "../result.js";
+
+/** Fake searcher (no network) — counts wire calls and returns a configurable
+ * nextLeaderSlot, or a failure to exercise the fallback path. */
+function fakeSearcher(nextLeaderSlot: bigint): LeaderSearcher & { calls: number } {
+  return {
+    calls: 0,
+    async getNextScheduledLeader() {
+      this.calls++;
+      return ok({ currentSlot: nextLeaderSlot - 4n, nextLeaderSlot });
+    },
+  };
+}
 
 describe("LeaderWindow", () => {
   it("(a) initial state: getCurrentSlot is 0n and schedule is empty", () => {
@@ -45,5 +58,61 @@ describe("LeaderWindow", () => {
     const window = await lw.getNextJitoLeaderWindow();
     expect(window.startSlot).toBe(1n);
     expect(window.endSlot).toBe(4n);
+  });
+
+  // ── Story 5.8 searcher-backed path ──────────────────────────────────────────
+
+  it("(g) no searcher → keeps the empirical +1n/+4n guess (AC3 regression lock)", async () => {
+    const lw = new LeaderWindow(); // no searcher injected
+    lw.consume({ kind: "slotAdvanced", slot: 426838676n });
+    const window = await lw.getNextJitoLeaderWindow();
+    expect(window.startSlot).toBe(426838677n);
+    expect(window.endSlot).toBe(426838680n);
+  });
+
+  it("(h) with searcher returning nextLeaderSlot=N → returns { N, N+3n }", async () => {
+    const searcher = fakeSearcher(426838680n);
+    const lw = new LeaderWindow(searcher);
+    lw.consume({ kind: "slotAdvanced", slot: 426838676n });
+    const window = await lw.getNextJitoLeaderWindow();
+    expect(window.startSlot).toBe(426838680n);
+    expect(window.endSlot).toBe(426838683n);
+  });
+
+  it("(i) caching: two calls within the same slot hit the searcher exactly once", async () => {
+    const searcher = fakeSearcher(500n);
+    const lw = new LeaderWindow(searcher);
+    lw.consume({ kind: "slotAdvanced", slot: 496n });
+    const w1 = await lw.getNextJitoLeaderWindow();
+    const w2 = await lw.getNextJitoLeaderWindow();
+    expect(searcher.calls).toBe(1);
+    expect(w1).toEqual(w2);
+    expect(w1.startSlot).toBe(500n);
+  });
+
+  it("(j) cache refresh after the slot advances past the cached window", async () => {
+    const searcher = fakeSearcher(500n);
+    const lw = new LeaderWindow(searcher);
+    lw.consume({ kind: "slotAdvanced", slot: 496n });
+    await lw.getNextJitoLeaderWindow(); // caches { 500, 503 } at slot 496
+    expect(searcher.calls).toBe(1);
+
+    // Advance well past the window end (503) → stale → refresh.
+    lw.consume({ kind: "slotAdvanced", slot: 510n });
+    await lw.getNextJitoLeaderWindow();
+    expect(searcher.calls).toBe(2);
+  });
+
+  it("(k) searcher error → falls back to the empirical guess, does not throw", async () => {
+    const searcher: LeaderSearcher = {
+      async getNextScheduledLeader() {
+        return fail({ reason: "8 RESOURCE_EXHAUSTED" });
+      },
+    };
+    const lw = new LeaderWindow(searcher);
+    lw.consume({ kind: "slotAdvanced", slot: 700n });
+    const window = await lw.getNextJitoLeaderWindow();
+    expect(window.startSlot).toBe(701n);
+    expect(window.endSlot).toBe(704n);
   });
 });

@@ -4,6 +4,21 @@ import { ConfigFileSchema, type AppConfig } from "./schemas/config-schema.js";
 
 export type { AppConfig } from "./schemas/config-schema.js";
 
+/** Story 5.8 AC2 — the Jito searcher auth keypair MUST be a separate, fund-less
+ * keypair, never the funded payer (KEYPAIR_PATH). Reusing the payer for searcher
+ * auth would expose the funded key on the searcher path. Exported (and throwing,
+ * not exiting) so it is unit-testable. */
+export function assertJitoAuthKeypair(
+  jitoAuthKeypairPath: string | undefined,
+  keypairPath: string,
+): void {
+  if (jitoAuthKeypairPath !== undefined && jitoAuthKeypairPath === keypairPath) {
+    throw new Error(
+      "JITO_AUTH_KEYPAIR_PATH must not be the funded payer keypair (KEYPAIR_PATH); use a separate fund-less keypair for Jito searcher auth",
+    );
+  }
+}
+
 export function loadConfig(profileOverride?: string): AppConfig {
   let raw: unknown;
   try {
@@ -44,6 +59,16 @@ export function loadConfig(profileOverride?: string): AppConfig {
     process.exit(1);
   }
 
+  // Optional Jito searcher auth keypair (Story 5.8). Fund-less; only used when a
+  // profile sets jitoSearcherUrl. Must never be the funded payer (AC2).
+  const jitoAuthKeypairPath = process.env["JITO_AUTH_KEYPAIR_PATH"];
+  try {
+    assertJitoAuthKeypair(jitoAuthKeypairPath, keypairPath);
+  } catch (err) {
+    console.error("Config error:", (err as Error).message);
+    process.exit(1);
+  }
+
   let profile = profileRaw;
 
   const expandPlaceholders = (s: string, fieldName: string): string =>
@@ -67,5 +92,5 @@ export function loadConfig(profileOverride?: string): AppConfig {
     profile = { ...profile, rpcEndpoint };
   }
 
-  return { llmApiKey, keypairPath, ...profile };
+  return { llmApiKey, keypairPath, jitoAuthKeypairPath, ...profile };
 }

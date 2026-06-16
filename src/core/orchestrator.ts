@@ -15,6 +15,7 @@ import { LeaderWindow } from "./leader/leader-window.js";
 import { LifecycleTracker } from "./lifecycle/lifecycle-tracker.js";
 import { classifyFailure, type ClassifiedFailure } from "./lifecycle/failure-classifier.js";
 import { JitoClient } from "./jito/jito-client.js";
+import { SearcherClient } from "./jito/searcher-client.js";
 import { fetchLiveTipData } from "./jito/tip-data.js";
 import { computeTip } from "./jito/tip-calculator.js";
 import { buildBundle } from "./jito/bundle-builder.js";
@@ -136,7 +137,21 @@ export async function runSession(params: SessionParams): Promise<void> {
         ? new GrpcAdapter(config.grpcEndpoint, config.grpcXToken, config.rpcEndpoint, stream)
         : new RpcWebSocketAdapter(config.rpcEndpoint, config.wsEndpoint, stream);
 
-    const leaderWindow = new LeaderWindow();
+    // Searcher mode (Story 5.8): opt-in per profile — requires BOTH a searcher
+    // host AND a fund-less auth keypair. When enabled, the LeaderWindow targets
+    // the searcher-confirmed Jito leader window and bundle submission routes
+    // through the authenticated searcher transport (CD-1). Otherwise the
+    // empirical +1n/+4n guess + hand-rolled JitoClient path stay byte-for-byte
+    // unchanged (AC3). Web sessions never reach here (no auth keypair, NFR9).
+    const searcher: SearcherClient | undefined =
+      config.jitoSearcherUrl && config.jitoAuthKeypairPath
+        ? new SearcherClient(config.jitoSearcherUrl, config.jitoAuthKeypairPath)
+        : undefined;
+    if (searcher) {
+      console.log("[session] Jito searcher mode ENABLED — confirmed-leader targeting via getNextScheduledLeader");
+    }
+
+    const leaderWindow = new LeaderWindow(searcher);
     const tracker = new LifecycleTracker(evidenceLog);
     const jito = new JitoClient(config.jitoBlockEngineUrl);
     const rpc = createSolanaRpc(config.rpcEndpoint);
@@ -161,6 +176,7 @@ export async function runSession(params: SessionParams): Promise<void> {
     const submissionTask = _runBundleLoop(
       config,
       jito,
+      searcher,
       rpc,
       adapter,
       tracker,
@@ -251,6 +267,7 @@ export async function runSession(params: SessionParams): Promise<void> {
 async function _runBundleLoop(
   config: AppConfig,
   jito: JitoClient,
+  searcher: SearcherClient | undefined,
   rpc: ReturnType<typeof createSolanaRpc>,
   adapter: GrpcAdapter | RpcWebSocketAdapter,
   tracker: LifecycleTracker,
@@ -265,8 +282,11 @@ async function _runBundleLoop(
   await streamLive;
   if (ac.signal.aborted) return;
 
-  // Fetch tip accounts once for the session.
-  const tipAccountsResult = await jito.getTipAccounts(ac.signal);
+  // Fetch tip accounts once for the session. In searcher mode they come from the
+  // authenticated searcher transport (AC5 — paced within the 2 req/s budget).
+  const tipAccountsResult = searcher
+    ? await searcher.getTipAccounts(ac.signal)
+    : await jito.getTipAccounts(ac.signal);
   if (ac.signal.aborted) return;
   if (!tipAccountsResult.ok) {
     const cf = classifyFailure(tipAccountsResult.failure.reason);
@@ -349,8 +369,12 @@ async function _runBundleLoop(
     const leaderWin = await leaderWindow.getNextJitoLeaderWindow();
     const submittedSlot = leaderWindow.getCurrentSlot();
 
-    // Submit the bundle.
-    const sendResult = await jito.sendBundle(bundleResult.transactions, ac.signal);
+    // Submit the bundle. In searcher mode this routes through the authenticated
+    // searcher transport (CD-1) — the path that landed a bundle first-try on
+    // 2026-06-16; the agent's already-integrated tip is preserved (no re-tip).
+    const sendResult = searcher
+      ? await searcher.sendBundle(bundleResult.transactions, ac.signal)
+      : await jito.sendBundle(bundleResult.transactions, ac.signal);
     if (ac.signal.aborted) break;
 
     if (!sendResult.ok) {

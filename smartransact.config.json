@@ -36,6 +36,7 @@
       "rpcEndpoint": "https://fra.rpc.solinfra.dev/sol?api_key=${SOLINFRA_RPC_KEY}",
       "wsEndpoint": "wss://api.mainnet-beta.solana.com",
       "jitoBlockEngineUrl": "https://frankfurt.mainnet.block-engine.jito.wtf",
+      "jitoSearcherUrl": "frankfurt.mainnet.block-engine.jito.wtf",
       "bundleCount": 12,
       "faultInjection": { "atBundle": 6 },
       "guardrails": {

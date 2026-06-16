@@ -70,10 +70,38 @@
  *   Fall back to the empirical path on any error.
  */
 import type { StreamEvent } from "../../schemas/stream-event-schema.js";
+import type { Result } from "../result.js";
+
+/** Narrow contract the LeaderWindow depends on for searcher-confirmed windows
+ * (Story 5.8). Declared structurally so the pure leader module NEVER imports
+ * jito-ts — SearcherClient satisfies it; tests inject a fake. `signal` is
+ * optional so the existing no-arg `getNextJitoLeaderWindow()` call sites stay
+ * unchanged (AC3). */
+export interface LeaderSearcher {
+  getNextScheduledLeader(
+    signal?: AbortSignal,
+  ): Promise<Result<{ currentSlot: bigint; nextLeaderSlot: bigint }, { reason: string }>>;
+}
+
+// A Jito leader holds 4 consecutive slots; refresh the searcher window at most
+// once per window (CD-2 budget safety — the agent re-queries this 3-4× per episode,
+// back-to-back, and must NOT blow the 2 req/s searcher budget).
+const SEARCHER_CACHE_TTL_SLOTS = 4n;
 
 export class LeaderWindow {
   private _currentSlot: bigint = 0n;
   private _schedule: Map<bigint, string> = new Map();
+
+  // ── Searcher-mode state (Story 5.8) — inert when no searcher is injected. ──
+  private readonly _searcher?: LeaderSearcher;
+  private _cachedWindow?: { startSlot: bigint; endSlot: bigint };
+  private _cachedAtSlot: bigint = 0n;
+
+  /** Pass a searcher to enable confirmed-leader targeting (operator searcher
+   * mode). Omit it (existing call sites) to keep the empirical +1n/+4n guess. */
+  constructor(searcher?: LeaderSearcher) {
+    this._searcher = searcher;
+  }
 
   consume(event: StreamEvent): void {
     if (event.kind === "slotAdvanced") {
@@ -91,7 +119,42 @@ export class LeaderWindow {
     return this._schedule;
   }
 
+  /** The 4-slot window to aim the next bundle at. No searcher → the empirical
+   * `currentSlot+1..+4` guess (unchanged — AC3). With a searcher → the cached
+   * window derived from `getNextScheduledLeader()`, refreshed from the wire only
+   * when stale (CD-2). On a searcher error, falls back to the empirical guess
+   * for that call (never throws out of an observation build). */
   async getNextJitoLeaderWindow(): Promise<{ startSlot: bigint; endSlot: bigint }> {
+    if (this._searcher === undefined) {
+      return this._empiricalWindow();
+    }
+
+    const stale =
+      this._cachedWindow === undefined ||
+      this._currentSlot - this._cachedAtSlot >= SEARCHER_CACHE_TTL_SLOTS ||
+      this._cachedWindow.endSlot < this._currentSlot;
+
+    if (stale) {
+      const res = await this._searcher.getNextScheduledLeader();
+      if (res.ok) {
+        this._cachedWindow = {
+          startSlot: res.value.nextLeaderSlot,
+          endSlot: res.value.nextLeaderSlot + 3n,
+        };
+        this._cachedAtSlot = this._currentSlot;
+      } else {
+        // Surface the reason, but keep the session alive on the empirical path.
+        console.error(
+          `[leader-window] searcher getNextScheduledLeader failed: ${res.failure.reason}; using empirical guess`,
+        );
+        return this._empiricalWindow();
+      }
+    }
+
+    return this._cachedWindow!;
+  }
+
+  private _empiricalWindow(): { startSlot: bigint; endSlot: bigint } {
     return { startSlot: this._currentSlot + 1n, endSlot: this._currentSlot + 4n };
   }
 }
