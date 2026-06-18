@@ -200,4 +200,104 @@ describe("parseEvidence", () => {
     expect(result.stats.failures).toBe(1);
     expect(result.stats.agentRecoveries).toBe(1); // ep-1 unique episodeId
   });
+
+  it("(e) live-run shape: orphaned failure + agentDecision correlate to the next resubmission", () => {
+    // Mirrors evidence/lifecycle-log.jsonl: failureClassified carries NO bundleId,
+    // agentDecision uses a synthetic "send-failed-N" id, and the recovery is the
+    // next bundleSubmitted. The parser must correlate these by event order.
+    const FAULT = ev({
+      event: "faultInjected",
+      at: "2026-06-16T16:09:43.241Z",
+      staleBlockhash: "7xMK6Kk7V3dQF4QYJ4iGdF4672YW9ZmqGMSQhknVBewE",
+      fetchedAtSlot: 426885606,
+      becameStaleAtSlot: 426885757,
+    });
+    const ORPHAN_FAILURE = ev({
+      event: "failureClassified",
+      at: "2026-06-16T16:09:43.373Z",
+      classification: "expired_blockhash",
+      rawError: "BlockhashNotFound",
+    });
+    const ORPHAN_DECISION = ev({
+      event: "agentDecision",
+      at: "2026-06-16T16:09:44.711Z",
+      bundleId: "send-failed-4",
+      episodeId: "ep-4-mqgu89cb",
+      attempt: 0,
+      observation: {
+        episodeId: "ep-4-mqgu89cb",
+        attempt: 0,
+        failure: { classification: "expired_blockhash", rawError: "BlockhashNotFound", failedAtSlot: 426885758 },
+        blockhashAgeSlots: 152,
+        currentSlot: 426885758,
+        leader: { slotsUntilNextTargetWindow: 2, windowLengthSlots: 3 },
+        tipMarket: {
+          floorPercentiles: { p25: 1734, p50: 4205, p75: 9809, p95: 29943, p99: 100000 },
+          emaP50: 3856,
+          observedRecentTips: [],
+        },
+        myLastTipLamports: 3856,
+        priorAttempts: [],
+        guardrails: { maxTipLamports: 1000000, tipBandLamports: [1000, 1000000], attemptsRemaining: 4 },
+      },
+      decision: {
+        diagnosis: "Expired blockhash",
+        action: "refresh",
+        rationale: "The blockhash has expired; refresh to resubmit.",
+      },
+      thinkingTrace: "1. expired_blockhash. 2. attempts remain. 3. refresh.",
+      clamped: false,
+    });
+    const RESUBMIT = ev({
+      event: "bundleSubmitted",
+      at: "2026-06-16T16:09:44.962Z",
+      bundleId: "132dae",
+      slot: 426885762,
+      tipLamports: 3856,
+    });
+
+    const events = [
+      SESSION,
+      FAULT,
+      ORPHAN_FAILURE,
+      ORPHAN_DECISION,
+      RESUBMIT,
+      commitTransition("132dae", "processed", 426885763),
+      commitTransition("132dae", "confirmed", 426885763),
+      commitTransition("132dae", "finalized", 426885763),
+    ];
+    const result = parseEvidence(events);
+
+    expect(result.rows).toHaveLength(1); // synthetic send-failed-4 is not a row
+    const row = result.rows[0];
+    expect(row.bundleId).toBe("132dae");
+    expect(row.status).toBe("recovered"); // failed → agent recovered → landed
+    expect(row.failureClassification).toBe("expired_blockhash");
+    expect(row.agentAction).toBe("refresh");
+    expect(row.episode).not.toBeNull();
+    expect(row.episode?.diagnosis).toBe("Expired blockhash");
+    expect(row.episode?.thinkingTrace).toContain("refresh");
+    expect(row.finalSlot).toBe(426885763);
+
+    expect(result.stats.bundlesSubmitted).toBe(1);
+    expect(result.stats.landed).toBe(1); // finalized on-chain counts as landed
+    expect(result.stats.failures).toBe(1);
+    expect(result.stats.agentRecoveries).toBe(1);
+  });
+
+  it("(f) orphaned failure with no following resubmission → its own failed row", () => {
+    const ORPHAN_FAILURE = ev({
+      event: "failureClassified",
+      at: "2026-06-16T16:09:43.373Z",
+      classification: "expired_blockhash",
+      rawError: "BlockhashNotFound",
+    });
+    const result = parseEvidence([SESSION, BUNDLE_A, ORPHAN_FAILURE]);
+    expect(result.rows).toHaveLength(2);
+    expect(result.rows[1].status).toBe("failed");
+    expect(result.rows[1].failureClassification).toBe("expired_blockhash");
+    expect(result.rows[1].submitSlot).toBeNull();
+    expect(result.stats.bundlesSubmitted).toBe(1); // synthetic row is not a submission
+    expect(result.stats.failures).toBe(1);
+  });
 });

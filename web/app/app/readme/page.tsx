@@ -68,6 +68,19 @@ export default function ReadmePage() {
           validity window) and issued a <code className="doc-code">refresh</code> action each time to fetch a
           fresh blockhash, maximizing the remaining validity window for the resubmission, which then landed.
         </p>
+        <p className="doc-body">
+          The tip was part of the same decision. Every episode hands the agent the full live tip market it
+          could act on (<code className="doc-code">refresh</code> vs.{" "}
+          <code className="doc-code">adjust_tip</code> are distinct actions, and the resubmission tip is
+          recomputed from live percentile data, not a constant). In both faults the agent observed the tip
+          market (ep-4 saw p50 <code className="doc-code">4205</code> / p75 <code className="doc-code">9809</code>,
+          ep-8 p50 <code className="doc-code">4674</code> / p75 <code className="doc-code">10718</code>) and
+          reasoned that the failure cause was the expired blockhash, not an underpriced tip, so it refreshed
+          the blockhash and held the tip rather than spending more lamports on a change that would not have
+          fixed the actual problem. Recalculating the tip means deciding what it should be each retry; here
+          the right answer, given the diagnosis, was to keep it. That is a real cost-versus-landing tradeoff,
+          not a hardcoded bump.
+        </p>
 
         <h3 className="doc-h3">Q3: What happens to your bundle if the Jito leader skips their slot?</h3>
         <p className="doc-body">

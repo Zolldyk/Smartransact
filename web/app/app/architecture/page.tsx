@@ -3,7 +3,7 @@ import { MermaidDiagram } from "@/components/ui/mermaid-diagram";
 
 const SYSTEM_OVERVIEW_MMD = `graph TD
   GrpcIn["SolInfra Ace mainnet gRPC"]-->YGA["YellowstoneGrpcAdapter\\n(primary)"]
-  WsIn["Testnet WebSocket\\n(fallback)"]-->RWA["RpcWebSocketAdapter"]
+  WsIn["Mainnet WebSocket\\n(ran the evidence session)"]-->RWA["RpcWebSocketAdapter"]
   YGA-->LS["LifecycleStream\\nbounded queue"]
   RWA-->LS
   LS-->ORC["Orchestrator\\n(single consumer)"]
@@ -73,9 +73,10 @@ export default function ArchitecturePage() {
           Smartransact is a single-process TypeScript backend that subscribes to a live Solana
           event stream, builds Jito bundles, tracks each bundle through the commitment lifecycle,
           and routes failures to an LLM-powered agent that decides how to recover. The system is
-          designed around a config-driven transport seam: SolInfra Ace mainnet gRPC is the primary
-          stream; testnet WebSocket is the verified fallback, switching requires only a config
-          profile change.
+          designed around a config-driven transport seam: SolInfra Ace mainnet Yellowstone gRPC is the
+          primary stream; a mainnet WebSocket profile is the verified fallback. Switching requires only a
+          config profile change, and the committed evidence session ran on the mainnet WebSocket profile
+          (see Infrastructure Decisions).
         </p>
         <MermaidDiagram id="diag-system-overview" definition={SYSTEM_OVERVIEW_MMD} title="System architecture" />
       </section>
@@ -88,11 +89,11 @@ export default function ArchitecturePage() {
         <ul className="doc-body" style={{ paddingLeft: "1.4em", marginBottom: 0 }}>
           <li><strong>LifecycleStream</strong> (<code className="doc-code">src/core/stream/lifecycle-stream.ts</code>):bounded async-iterable event bus; drops oldest events under backpressure (FR6); provides exactly one consumer seam.</li>
           <li><strong>YellowstoneGrpcAdapter</strong> (<code className="doc-code">src/core/stream/grpc-adapter.ts</code>):connects to SolInfra Ace hosted Yellowstone gRPC, normalizes slot + shred events into <code className="doc-code">LifecycleEvent</code> union.</li>
-          <li><strong>RpcWebSocketAdapter</strong> (<code className="doc-code">src/core/stream/ws-adapter.ts</code>):testnet WebSocket fallback; same event union; config-selected, zero core changes to switch.</li>
+          <li><strong>RpcWebSocketAdapter</strong> (<code className="doc-code">src/core/stream/ws-adapter.ts</code>):mainnet WebSocket fallback (ran the committed evidence session); same event union; config-selected, zero core changes to switch.</li>
           <li><strong>Orchestrator</strong> (<code className="doc-code">src/core/orchestrator.ts</code>):the single stream consumer; drives all subsystems in sequence; owns all mutable session state.</li>
-          <li><strong>JitoClient</strong> (<code className="doc-code">src/core/submit/jito-client.ts</code>):thin hand-rolled <code className="doc-code">fetch</code>-based Block Engine client (4 JSON-RPC methods + 1 REST); handles base64 encoding, rate limiting, and 429/503 backoff.</li>
-          <li><strong>LifecycleTracker</strong> (<code className="doc-code">src/core/track/lifecycle-tracker.ts</code>):per-bundle state machine (<code className="doc-code">submitted → processed → confirmed → finalized</code> + failure exits); transitions driven exclusively by stream events with latency telemetry.</li>
-          <li><strong>FailureClassifier</strong> (<code className="doc-code">src/core/track/failure-classifier.ts</code>):pure function: typed <code className="doc-code">Result&lt;T, ClassifiedFailure&gt;</code> in, one of four classification labels out (<code className="doc-code">expired_blockhash</code>, <code className="doc-code">fee_too_low</code>, <code className="doc-code">compute_exceeded</code>, <code className="doc-code">bundle_failure</code>); never throws.</li>
+          <li><strong>JitoClient</strong> (<code className="doc-code">src/core/jito/jito-client.ts</code>):thin hand-rolled <code className="doc-code">fetch</code>-based Block Engine client (4 JSON-RPC methods + 1 REST); handles base64 encoding, rate limiting, and 429/503 backoff.</li>
+          <li><strong>LifecycleTracker</strong> (<code className="doc-code">src/core/lifecycle/lifecycle-tracker.ts</code>):per-bundle state machine (<code className="doc-code">submitted → processed → confirmed → finalized</code> + failure exits); transitions driven exclusively by stream events with latency telemetry.</li>
+          <li><strong>FailureClassifier</strong> (<code className="doc-code">src/core/lifecycle/failure-classifier.ts</code>):pure function: typed <code className="doc-code">Result&lt;T, ClassifiedFailure&gt;</code> in, one of four classification labels out (<code className="doc-code">expired_blockhash</code>, <code className="doc-code">fee_too_low</code>, <code className="doc-code">compute_exceeded</code>, <code className="doc-code">bundle_failure</code>); never throws.</li>
           <li><strong>AgentLoop</strong> (<code className="doc-code">src/agent/agent-loop.ts</code>):episodic retry coordinator; calls <code className="doc-code">ObservationBuilder</code> → <code className="doc-code">LlmProvider</code> → <code className="doc-code">Guardrails</code> → <code className="doc-code">DecisionExecutor</code> per failure; respects <code className="doc-code">maxRetries</code> hard stop.</li>
           <li><strong>EvidenceLogger</strong> (<code className="doc-code">src/core/evidence/evidence-log.ts</code>):append-only JSONL writer; fires <code className="doc-code">onAppend</code> callback (web streaming seam) after schema validation + file write.</li>
         </ul>
@@ -185,11 +186,15 @@ export default function ArchitecturePage() {
           Two adapters, one event union, zero core changes to switch. The{" "}
           <code className="doc-code">LifecycleStream</code> consumer (the Orchestrator) is transport-agnostic
           by construction; it iterates <code className="doc-code">LifecycleEvent</code> values regardless of
-          source. Switching from the mainnet gRPC adapter to the testnet WS adapter is a single config key
+          source. Switching from the mainnet gRPC adapter to the mainnet WS adapter is a single config key
           change (<code className="doc-code">profile: &quot;mainnet-grpc&quot;</code> →{" "}
           <code className="doc-code">&quot;mainnet-ws&quot;</code>). This was operationally proven during
-          development: the mainnet-ws profile ran the full evidence session when SolInfra&apos;s gRPC streaming
-          hit a server-side concurrent-stream limit. <code className="doc-code">dryRun</code> is the third leg
+          development: the <code className="doc-code">mainnet-ws</code> profile (mainnet-beta WebSocket for slot
+          streaming, SolInfra RPC for leader schedule and signature status, Frankfurt Jito for submission) ran
+          the full committed evidence session when SolInfra&apos;s gRPC streaming hit a server-side
+          concurrent-stream limit. Network parity holds either way: the stream network equals the submission
+          network (mainnet), and landing is confirmed via live <code className="doc-code">signatureSubscribe</code>{" "}
+          stream subscriptions, never RPC polling alone. <code className="doc-code">dryRun</code> is the third leg
           of cost control: it forces a zero-spend path through every code branch except the final{" "}
           <code className="doc-code">sendBundle</code> call, so the entire stack (stream, leader detection,
           bundle building, agent loop, evidence logging) was exercised on production infrastructure before a
