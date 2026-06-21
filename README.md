@@ -2,6 +2,8 @@
 
 Solana mainnet Jito bundle agent with adaptive LLM-powered retry. Watch a real transaction lifecycle unfold or run your own dryRun session (free, no SOL) at the live demo.
 
+**Demo video (3 min):** [Watch on Loom](https://www.loom.com/share/e133d15d32ad4868ad19efe08691e7b0)
+
 **Live demo:** [https://smartransact.vercel.app](https://smartransact.vercel.app) · [Architecture](https://smartransact.vercel.app/architecture) · [Docs](https://smartransact.vercel.app/readme)
 
 ## CLI Quickstart
